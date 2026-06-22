@@ -144,3 +144,15 @@ def test_docs_explain_last_completed_slice_semantics():
     text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
     assert 'scheduler slice lines are emitted after completion' in text.lower()
     assert 'Last completed slice' in text and 'Previous completed slice' in text
+
+def test_docs_use_discovered_names_terminology():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert 'Discovered names' in text
+    assert 'Recovered candidates' not in text and 'recovered candidates' not in text
+
+def test_docs_explain_arm_table_columns():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert 'R = latest reward' in text
+    assert 'Score = latest scheduler score' in text

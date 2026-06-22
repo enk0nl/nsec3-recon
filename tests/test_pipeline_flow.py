@@ -104,6 +104,10 @@ def test_pipeline_prints_final_summary_path(monkeypatch,tmp_path,capsys):
 
 
 def test_rich_falls_back_to_console_if_dashboard_not_implemented(monkeypatch,tmp_path,capsys):
+    import nsec3_recon.pipeline as pipeline_mod
+    class BadDashboard:
+        def __init__(self, *args, **kwargs): raise RuntimeError("dashboard unavailable")
+    monkeypatch.setattr(pipeline_mod, "RichDashboard", BadDashboard)
     from nsec3_recon.stages import dns_probe, axfr, nsec3map_stage
     def fake_dns(ctx):
         ctx.events.emit('dns_probe','completed','DNS probe completed')

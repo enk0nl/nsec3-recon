@@ -54,7 +54,10 @@ def parse_scheduler_line(line: str) -> SchedulerParseResult:
     if 'queue' in kv:
         a,b = _split_transition(kv['queue']); data['queue_before'] = _to_int(a); data['queue_after'] = _to_int(b)
     if 'score' in kv:
-        a,b = _split_transition(kv['score']); data['score_before'] = _to_float(a); data['score_after'] = _to_float(b)
+        if '->' in kv['score']:
+            a,b = _split_transition(kv['score']); data['score_before'] = _to_float(a); data['score_after'] = _to_float(b)
+        else:
+            data['score_after'] = _to_float(kv['score'])
     if 'skip' in kv:
         a,b = _split_transition(kv['skip']); data['skip_before'] = _to_int(a); data['skip_after'] = _to_int(b)
     if 'gate_queue' in kv:

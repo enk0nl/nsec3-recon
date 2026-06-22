@@ -42,10 +42,10 @@ def test_dashboard_arm_stats_aggregate():
     s=DashboardState(); s.update_slice({'slice_index':1,'arm':'a','new':2,'reward':1.0,'runtime_seconds':2.0,'score_after':0.4}); s.update_slice({'slice_index':2,'arm':'a','new':3,'reward':2.0,'runtime_seconds':4.0,'score_after':0.6})
     a=s.arm_stats['a']; assert a.run_count==2 and a.total_new==5 and a.avg_reward==1.5 and a.avg_runtime==3.0 and a.last_score==0.6
 
-def test_dashboard_recovered_candidates_feed(tmp_path):
+def test_nsec3_potfile_names_are_discovered_names(tmp_path):
     p=tmp_path/'x.pot'; p.write_text('h:cand\n')
     d=RichDashboard('example.nl', tmp_path); d.state.current_potfile_path=str(p); d.poll_external_sources(); d.poll_external_sources()
-    assert d.state.recovered_candidate_count==1 and d.state.recovered_candidates[0]['candidate']=='cand'
+    assert d.state.discovered_names_count==1 and d.state.discovered_names_recent[0].name=='cand' and d.state.discovered_names_recent[0].source=='nsec3'
 
 def test_dashboard_potfile_discovery(tmp_path):
     p=tmp_path/'scheduler'/'run.pot'; p.parent.mkdir(); p.write_text('')
@@ -67,7 +67,7 @@ def test_slice_panel_labels_are_completed_slice_labels():
     Console=pytest.importorskip('rich.console').Console
     console=Console(record=True, width=160, color_system=None); console.print(__import__('nsec3_recon.ui.widgets', fromlist=['build_dashboard']).build_dashboard(s))
     out=console.export_text()
-    for h in ('Pipeline','Last completed slice','Previous completed slice','Arm statistics','Recovered candidates','Recent activity'): assert h in out
+    for h in ('Pipeline','Last completed slice','Previous completed slice','Arm statistics','Discovered names','Recent activity'): assert h in out
     assert 'Current slice' not in out
 
 def test_console_mode_still_works(tmp_path):
@@ -127,7 +127,7 @@ def test_live_settings_reduce_flicker(monkeypatch):
     d=RichDashboard(refresh_per_second=2); d.start(); d.stop()
     assert calls['transient'] is False and calls['screen'] is False and calls['refresh_per_second'] <= 2 and calls['auto_refresh'] is False
 
-def test_final_summary_prints_recovered_candidates(monkeypatch, capsys):
+def test_final_summary_prints_discovered_names(monkeypatch, capsys):
     from nsec3_recon import cli
     class Ctx:
         class Workspace:
@@ -136,13 +136,13 @@ def test_final_summary_prints_recovered_candidates(monkeypatch, capsys):
             root=Root()
         workspace=Workspace(); state={'summary': {'completed_via': 'nsec3_scheduler'}}
         class Dash:
-            class State: recovered_candidate_count=1234
+            class State: discovered_names_count=1234
             state=State()
         dashboard_controller=Dash()
     monkeypatch.setattr(cli, 'Pipeline', lambda cfg: type('P', (), {'run': lambda self: Ctx()})())
     assert cli.main(['example.nl','--dashboard','rich']) == 0
     out=capsys.readouterr().out
-    assert 'Completed via:' in out and 'Summary:' in out and 'Recovered candidates: 1234' in out
+    assert 'Completed via:' in out and 'Summary:' in out and 'Discovered names: 1234' in out
 
 def _render_text(state):
     import pytest
@@ -154,12 +154,13 @@ def _render_text(state):
 def test_dashboard_render_contains_key_sections():
     s=DashboardState('example.nl','/tmp/ws'); s.scheduler_started=True
     out=_render_text(s)
-    for h in ('Pipeline','Last completed slice','Previous completed slice','Arm statistics','Recovered candidates','Recent activity'): assert h in out
+    for h in ('Pipeline','Last completed slice','Previous completed slice','Arm statistics','Discovered names','Recent activity'): assert h in out
 
 def test_arm_stats_headers_are_readable():
     s=DashboardState('example.nl','/tmp/ws'); s.update_slice({'slice_index':1,'arm':'feedback/predictive-prefix','new':1,'reward':1.2,'runtime_seconds':3.4})
     out=_render_text(s)
-    for h in ('Arm','Runs','New','Last','Avg R','Last R','Avg t','Seen'): assert h in out
+    for h in ('Arm','Runs','New','Last','R','Score','Avg t','Seen'): assert h in out
+    assert 'Avg R' not in out
     for bad in ('to...','avg_...','las...'): assert bad not in out
 
 def test_arm_stats_numeric_formatting():
@@ -173,23 +174,24 @@ def test_arm_stats_limits_rows_and_reports_more():
     out=_render_text(s)
     assert '+4 more arms' in out
 
-def test_recovered_candidates_have_timestamps():
-    s=DashboardState('example.nl','/tmp/ws'); s.current_potfile_path='/tmp/ws/scheduler/run.pot'; s.add_recovered_candidates(['api'])
+def test_discovered_names_have_timestamps():
+    s=DashboardState('example.nl','/tmp/ws'); s.current_potfile_path='/tmp/ws/scheduler/run.pot'; s.add_discovered_names(['api'], source='nsec3', method='hashcat_potfile')
     out=_render_text(s)
     import re
-    assert re.search(r'\d{2}:\d{2}:\d{2}\s+api', out)
+    assert re.search(r'\d{2}:\d{2}:\d{2}\s+nsec3\s+api', out)
 
-def test_recovered_candidates_panel_prominent():
+def test_discovered_names_panel_prominent():
     s=DashboardState('example.nl','/tmp/ws')
     out=_render_text(s)
-    assert 'Recovered candidates' in out and 'total=0' in out
+    assert 'Discovered names' in out and 'total=0' in out
 
-def test_recovered_candidate_timestamp_spacing():
+def test_discovered_names_render_timestamp_spacing():
     s=DashboardState('example.nl','/tmp/ws')
-    s.recovered_candidates.append({'timestamp':'21:07:22','candidate':'www','first_seen_at':0})
-    s.recovered_candidate_count=1
+    from nsec3_recon.ui.dashboard_state import DiscoveredName
+    s.discovered_names_recent.append(DiscoveredName(name='www', source='nsec3', method='hashcat_potfile', first_seen_at='21:07:22'))
+    s.discovered_names_count=1
     out=_render_text(s)
-    assert '21:07:22  www' in out
+    assert '21:07:22  nsec3  www' in out or '21:07:22  www' in out
     assert '21:07:22www' not in out
 
 def test_dashboard_refresh_rate_default_is_low():
@@ -233,3 +235,92 @@ def test_live_constructed_with_non_transient_non_screen(monkeypatch):
     d=RichDashboard(refresh_per_second=2); d.start(); d.stop()
     assert calls['transient'] is False and calls['screen'] is False and calls['refresh_per_second'] == 2
     assert calls['auto_refresh'] is False
+
+def test_dashboard_panel_renamed_to_discovered_names():
+    s=DashboardState('example.nl','/tmp/ws')
+    out=_render_text(s)
+    assert 'Discovered names' in out
+    assert 'Recovered candidates' not in out
+
+def test_discovered_name_record_dedupes_normalized_names():
+    s=DashboardState('example.nl')
+    s.add_discovered_names(['www.example.nl.', 'WWW.example.nl'], source='axfr', method='zone_transfer')
+    assert s.discovered_names_count == 1
+    assert len(s.discovered_names_recent) == 1
+
+def test_discovered_names_batch_count():
+    s=DashboardState('example.nl')
+    s.handle_event(PipelineEvent('now','discovery','info','names_discovered','names discovered',{'source':'nsec','method':'nsec_walk','count':1000,'names':[f'n{i}.example.nl' for i in range(20)]}))
+    assert s.discovered_names_count == 1000
+    assert s.discovered_names_by_source['nsec'] == 1000
+
+def test_plain_console_summarizes_discovery_batch(capsys):
+    from nsec3_recon.ui.console import ConsoleEventPrinter
+    printer=ConsoleEventPrinter(verbose=False)
+    printer.handle_event(PipelineEvent('now','discovery','info','names_discovered','1000 names discovered via AXFR',{'source':'axfr','method':'zone_transfer','count':1000,'names':['a','b','c']}))
+    out=capsys.readouterr().out
+    assert 'names discovered' in out and "['a'" not in out and "'b'" not in out and "'c'" not in out
+
+def test_arm_stats_headers_use_reward_and_score():
+    s=DashboardState('example.nl','/tmp/ws'); s.update_slice({'slice_index':1,'arm':'feedback/predictive-prefix','new':1,'reward':4.747,'runtime_seconds':3.4,'score_after':0.73})
+    out=_render_text(s)
+    for h in ('Arm','Runs','New','Last','R','Score','Avg t','Seen'): assert h in out
+    assert 'Avg R' not in out
+
+def test_arm_stats_score_uses_score_after():
+    from nsec3_recon.ui.scheduler_parser import parse_scheduler_line
+    s=DashboardState('example.nl','/tmp/ws')
+    d=parse_scheduler_line('[1/2] adaptive arm reward=4.747 score=0.02->0.73 runtime=2.0s').data
+    s.update_slice(d)
+    a=s.arm_stats['arm']
+    assert a.last_reward == 4.747 and a.last_score == 0.73
+    out=_render_text(s)
+    assert '4.75' in out and '0.73' in out
+
+def test_arm_stats_score_missing_displays_dash():
+    s=DashboardState('example.nl','/tmp/ws'); s.update_slice({'slice_index':1,'arm':'arm','reward':1.0})
+    out=_render_text(s)
+    assert '–' in out
+
+def test_axfr_success_populates_discovered_names_event(monkeypatch,tmp_path):
+    from nsec3_recon.stages import axfr
+    from nsec3_recon.pipeline import PipelineContext
+    from nsec3_recon.config import PipelineConfig
+    from nsec3_recon.workspace import Workspace
+    from nsec3_recon.events import EventSink
+    monkeypatch.setattr(axfr.dns, 'try_axfr', lambda domain, ns: 'www.example.nl. 3600 IN A 192.0.2.1\napi.example.nl. 3600 IN A 192.0.2.2\n')
+    events=[]; ws=Workspace.create('example.nl', tmp_path/'r'); ev=EventSink(ws.root/'events.jsonl', listeners=[events.append])
+    ctx=PipelineContext(PipelineConfig('example.nl', out_dir=tmp_path/'r', dashboard='off'), ws, ev); ctx.state['nameservers']=[{'name':'ns1.example.nl','addresses':['192.0.2.53']}]
+    axfr.run(ctx)
+    discovery=[e for e in events if e.stage=='discovery' and e.event=='names_discovered']
+    assert discovery and discovery[0].data['source']=='axfr' and discovery[0].data['count']==2
+
+def test_nsec_path_populates_discovered_names_event(monkeypatch,tmp_path):
+    from nsec3_recon.pipeline import Pipeline
+    from nsec3_recon.stages import dns_probe, axfr, nsec3map_stage
+    from nsec3_recon.adapters import nsec3map as nsec3_adapter
+    monkeypatch.setattr(dns_probe,'run',lambda ctx: ctx.state.update(dnssec={'probe_dnssec_enabled':True}, nameservers=[]) or ctx.state['dnssec'])
+    monkeypatch.setattr(axfr,'run',lambda ctx: ctx.state.update(axfr={'supported':False}) or ctx.state['axfr'])
+    monkeypatch.setattr(nsec3map_stage,'detect',lambda ctx: ctx.state.update(nsec3map_detect={'status':'success','zone_type':'nsec'}) or ctx.state['nsec3map_detect'])
+    def enum(ctx, detected_zone_type=None):
+        (ctx.workspace.root/'nsec3map').mkdir(exist_ok=True)
+        (ctx.workspace.root/'nsec3map/zone.txt').write_text('')
+        ctx.state['nsec3map']={'zone_type':'nsec','zone_file':'nsec3map/zone.txt'}; return ctx.state['nsec3map']
+    monkeypatch.setattr(nsec3map_stage,'enumerate',enum)
+    monkeypatch.setattr(nsec3_adapter,'extract_nsec_names',lambda path, domain:['www.example.nl','api.example.nl'])
+    ctx=Pipeline(PipelineConfig('example.nl', out_dir=tmp_path/'r', dashboard='off')).run()
+    lines=(ctx.workspace.root/'events.jsonl').read_text()
+    assert '"stage": "discovery"' in lines and '"source": "nsec"' in lines
+
+def test_summary_includes_discovered_names_counts(tmp_path):
+    from nsec3_recon.pipeline import PipelineContext
+    from nsec3_recon.config import PipelineConfig
+    from nsec3_recon.workspace import Workspace
+    from nsec3_recon.events import EventSink
+    from nsec3_recon.report import write_summary
+    import json
+    ws=Workspace.create('example.nl', tmp_path/'r'); ctx=PipelineContext(PipelineConfig('example.nl', out_dir=tmp_path/'r'), ws, EventSink(ws.root/'events.jsonl'))
+    ctx.state['discovered_names']={'total':3,'by_source':{'axfr':3}}
+    write_summary(ctx, 'axfr')
+    data=json.loads((ws.root/'reports/summary.json').read_text())
+    assert data['discovered_names']['total']==3 and data['discovered_names']['by_source']['axfr']==3

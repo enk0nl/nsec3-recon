@@ -8,6 +8,13 @@ STAGES = ['preflight','dns_probe','axfr','nsec3map_detect','nsec3map_enumeration
 LOW_VALUE_EVENTS = {'workspace_created','python_deps_ok','dependency_check_ok','tool_version_ok','model_assets_ok','path_check_ok'}
 
 @dataclass
+class DiscoveredName:
+    name: str
+    source: str
+    method: str
+    first_seen_at: str
+
+@dataclass
 class StageState:
     name: str
     status: str = 'pending'
@@ -43,8 +50,12 @@ class DashboardState:
         self.stages={s: StageState(s) for s in STAGES}
         self.scheduler_started=False; self.last_completed_slice=None; self.previous_completed_slice=None; self.slice_history=deque(maxlen=100)
         self.arm_stats={}; self.recent_activity=deque(maxlen=80); self.recent_scheduler_messages=deque(maxlen=80)
-        self.recovered_candidates=deque(maxlen=200); self._candidate_seen=set(); self.recovered_candidate_count=0
+        self.discovered_names_recent=deque(maxlen=200); self.discovered_names_seen=set(); self.discovered_names_count=0; self.discovered_names_by_source={}
         self.current_potfile_path=None; self.last_scheduler_stdout=None; self.last_scheduler_stderr=None; self.scheduler_runtime_started_at=None
+    @property
+    def recovered_candidates(self): return self.discovered_names_recent
+    @property
+    def recovered_candidate_count(self): return self.discovered_names_count
     @property
     def current_slice(self): return self.last_completed_slice
     @property
@@ -71,6 +82,8 @@ class DashboardState:
             if event.event=='started': self.scheduler_started=True; self.scheduler_runtime_started_at=time.time()
             if event.event=='stdout': self.last_scheduler_stdout=event.message
             if event.event=='stderr': self.last_scheduler_stderr=event.message; self.add_activity('[scheduler] stderr: '+event.message,'warning')
+        if event.stage == 'discovery':
+            self._handle_discovery_event(event, data)
         if event.event in ('summary_written','completed') and data.get('completed_via'):
             self.completed_via=data.get('completed_via'); self.overall_status='completed'
         if self._should_add_activity(event): self.add_activity(self._format_activity(event, data), event.level)
@@ -78,8 +91,10 @@ class DashboardState:
         if event.event == 'stdout': return False
         if event.level in ('warning','error'): return True
         if event.event in LOW_VALUE_EVENTS: return False
-        return event.event in {'started','completed','detect_completed','detect_not_dnssec','detect_ambiguous','axfr_refused','nsec_names_extracted'} or event.event.endswith('_completed')
+        return event.stage == 'discovery' or event.event in {'started','completed','detect_completed','detect_not_dnssec','detect_ambiguous','axfr_refused','nsec_names_extracted'} or event.event.endswith('_completed')
     def _format_activity(self, event, data):
+        if event.stage == 'discovery':
+            return f"[discovery] {data.get('count', data.get('name', ''))} names discovered via {data.get('source', 'unknown')}"
         if event.stage == 'hashcatify' and data.get('hash_count') is not None:
             return f"[hashcatify] hash_count={data.get('hash_count')}"
         if event.stage == 'nsec3map' and data.get('zone_type'):
@@ -100,11 +115,27 @@ class DashboardState:
         st.last_runtime=data.get('runtime_seconds') or 0.0; st.total_runtime += st.last_runtime
         st.last_score=data.get('score_after') if data.get('score_after') is not None else data.get('score_before'); st.score_history.append(st.last_score or 0)
         st.last_queue_before=data.get('queue_before'); st.last_queue_after=data.get('queue_after')
-    def add_recovered_candidates(self, candidates):
+    def _normalize_name(self, name):
+        return str(name or '').strip().lower().rstrip('.')
+    def _handle_discovery_event(self, event, data):
+        source=data.get('source') or 'unknown'; method=data.get('method') or 'unknown'
+        if event.event == 'name_discovered':
+            self.add_discovered_names([data.get('name')], source=source, method=method)
+        elif event.event == 'names_discovered':
+            self.add_discovered_names(data.get('names') or [], source=source, method=method, count=data.get('count'))
+    def add_discovered_names(self, names, source='nsec3', method='hashcat_potfile', count=None):
         added=[]
-        for c in candidates or []:
-            if c and c not in self._candidate_seen:
-                self._candidate_seen.add(c); self.recovered_candidate_count+=1
-                item={'first_seen_at':time.time(),'timestamp':datetime.now().strftime('%H:%M:%S'),'candidate':c}
-                self.recovered_candidates.append(item); added.append(c)
+        before_source=self.discovered_names_by_source.get(source, 0)
+        for name in names or []:
+            norm=self._normalize_name(name)
+            if not norm or norm in self.discovered_names_seen:
+                continue
+            self.discovered_names_seen.add(norm)
+            item=DiscoveredName(name=str(name).rstrip('.'), source=source, method=method, first_seen_at=datetime.now().strftime('%H:%M:%S'))
+            self.discovered_names_recent.append(item); added.append(item)
+        observed_count = int(count) if count is not None else before_source + len(added)
+        self.discovered_names_by_source[source] = max(before_source + len(added), observed_count)
+        self.discovered_names_count = max(len(self.discovered_names_seen), sum(self.discovered_names_by_source.values()))
         return added
+    def add_recovered_candidates(self, candidates):
+        return self.add_discovered_names(candidates, source='nsec3', method='hashcat_potfile')

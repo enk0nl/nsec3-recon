@@ -68,6 +68,8 @@ class Pipeline:
             if zone_type=='nsec':
                 names=extract_nsec_names(ctx.workspace.root/'nsec3map/zone.txt', ctx.config.domain)
                 (ctx.workspace.root/'reports/discovered_names.txt').write_text('\n'.join(names)+'\n')
+                ctx.state['discovered_names']={'total':len(names),'by_source':{'nsec':len(names)}}
+                ctx.events.emit('discovery','names_discovered', f'{len(names)} names discovered via NSEC walk', data={'source':'nsec','method':'nsec_walk','count':len(names),'names':names[-200:]})
                 ctx.events.emit('nsec3map','nsec_names_extracted', f'extracted {len(names)} NSEC names', data={'zone_type': 'nsec'})
                 write_summary(ctx,'nsec'); return ctx
             if zone_type!='nsec3':

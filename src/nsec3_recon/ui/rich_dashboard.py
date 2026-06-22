@@ -76,4 +76,4 @@ class RichDashboard:
                 self.state.current_potfile_path=str(path); self._tail=PotfileTail(path)
         if self._tail:
             new=self._tail.poll()
-            if self.state.add_recovered_candidates(new): self._dirty=True
+            if self.state.add_discovered_names(new, source='nsec3', method='hashcat_potfile'): self._dirty=True

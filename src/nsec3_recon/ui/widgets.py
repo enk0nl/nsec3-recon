@@ -30,10 +30,10 @@ def _slice_lines(s):
     return lines
 
 def _fmt_float(value, ndigits=2):
-    return '-' if value is None else f"{float(value):.{ndigits}f}"
+    return '–' if value is None else f"{float(value):.{ndigits}f}"
 
 def _fmt_runtime(value):
-    return '-' if value is None else f"{float(value):.1f}s"
+    return '–' if value is None else f"{float(value):.1f}s"
 
 def _build_arm_panel(state):
     from rich.panel import Panel
@@ -41,37 +41,47 @@ def _build_arm_panel(state):
     from rich.text import Text
     arms = Table(expand=True, show_edge=False, box=None, pad_edge=False)
     arms.add_column('Arm', overflow='ellipsis', ratio=3, no_wrap=True)
-    for col in ('Runs','New','Last','Avg R','Last R','Avg t','Seen'):
+    for col in ('Runs','New','Last','R','Score','Avg t','Seen'):
         arms.add_column(col, justify='right', no_wrap=True)
-    sorted_arms=sorted(state.arm_stats.values(), key=lambda a:(not a.active, -a.total_new, -a.avg_reward, -a.run_count))
+    sorted_arms=sorted(state.arm_stats.values(), key=lambda a:(not a.active, -a.total_new, -(a.last_score if a.last_score is not None else float('-inf')), -a.run_count))
     for a in sorted_arms[:ARM_ROW_LIMIT]:
         arm_name = shorten_middle(a.name, 30)
         if a.active: arm_name = '▶ ' + arm_name
-        arms.add_row(arm_name, str(a.run_count), str(a.total_new), str(a.last_new), _fmt_float(a.avg_reward), _fmt_float(a.last_reward), _fmt_runtime(a.avg_runtime), str(a.last_seen_slice or '-'))
+        arms.add_row(arm_name, str(a.run_count), str(a.total_new), str(a.last_new), _fmt_float(a.last_reward), _fmt_float(a.last_score), _fmt_runtime(a.avg_runtime), str(a.last_seen_slice or '-'))
     if not sorted_arms:
         arms.add_row('waiting for scheduler slices', '', '', '', '', '', '', '')
     visible_count = max(1, min(len(sorted_arms), ARM_ROW_LIMIT))
     for _ in range(max(0, ARM_ROW_LIMIT - visible_count)):
         arms.add_row('', '', '', '', '', '', '', '')
     hidden=max(0, len(sorted_arms)-ARM_ROW_LIMIT)
-    footer = f"+{hidden} more arms" if hidden else "sorted by active, new discoveries, reward"
+    footer = f"+{hidden} more arms" if hidden else "R=latest reward  Score=latest score"
     return Panel(arms, title='Arm statistics', subtitle=footer, border_style='green')
 
-def _build_recovered_panel(state):
+def _build_discovered_panel(state):
     from rich.panel import Panel
     from rich.text import Text
-    rows=list(state.recovered_candidates)[-RECOVERED_ROW_LIMIT:]
+    rows=list(state.discovered_names_recent)[-RECOVERED_ROW_LIMIT:]
     lines=[]
     if rows:
         for item in rows:
-            lines.append(Text.assemble((item.get('timestamp','--:--:--'), 'cyan'), ('  ', 'cyan'), (item.get('candidate',''), 'bold white')))
+            timestamp=getattr(item, 'first_seen_at', '--:--:--'); source=getattr(item, 'source', ''); name=getattr(item, 'name', '')
+            lines.append(Text.assemble((timestamp, 'cyan'), ('  ', 'cyan'), (f'{source:<5}', 'blue'), ('  ', 'cyan'), (name, 'bold white')))
     else:
-        msg='potfile not detected yet' if not state.current_potfile_path else 'waiting for recovered candidates…'
+        msg='potfile not detected yet' if not state.current_potfile_path and not state.discovered_names_by_source else 'waiting for discovered names…'
         lines.append(Text(msg, style='dim'))
     while len(lines) < RECOVERED_ROW_LIMIT:
         lines.append(Text(''))
-    source = f"source: {state.current_potfile_path.split('/')[-1]}" if state.current_potfile_path else 'potfile not detected yet'
-    return Panel(Text('\n').join(lines), title='Recovered candidates', subtitle=f"total={state.recovered_candidate_count}  {source}", border_style='bright_yellow')
+    source = _discovered_source_label(state)
+    return Panel(Text('\n').join(lines), title='Discovered names', subtitle=f"total={state.discovered_names_count}  source: {source}", border_style='bright_yellow')
+
+def _discovered_source_label(state):
+    if len(state.discovered_names_by_source) > 1:
+        return 'mixed'
+    if len(state.discovered_names_by_source) == 1:
+        return next(iter(state.discovered_names_by_source))
+    if state.current_potfile_path:
+        return state.current_potfile_path.split('/')[-1]
+    return 'none'
 
 def _build_activity_panel(state):
     from rich.panel import Panel
@@ -107,10 +117,10 @@ def build_dashboard(state):
         st=state.stages.get(state.current_stage); operation=Panel((st.message if st else 'waiting') or 'waiting', title='Current operation', border_style='bright_cyan')
     previous=Panel('\n'.join(_slice_lines(state.previous_completed_slice)), title='Previous completed slice', border_style='cyan')
     arm_panel=_build_arm_panel(state)
-    recovered=_build_recovered_panel(state)
-    footer=Panel(f"events={state.event_count}  warnings={state.warnings_count}  errors={state.errors_count}  recovered={state.recovered_candidate_count}  parsed_slices={len(state.slice_history)}", border_style='dim')
+    discovered=_build_discovered_panel(state)
+    footer=Panel(f"events={state.event_count}  warnings={state.warnings_count}  errors={state.errors_count}  discovered={state.discovered_names_count}  parsed_slices={len(state.slice_history)}", border_style='dim')
     layout=Layout(); layout.split_column(Layout(header,size=3), Layout(name='body'), Layout(footer,size=3))
-    layout['body'].split_row(Layout(name='left',ratio=25), Layout(name='center',ratio=45), Layout(recovered,name='right',ratio=30))
+    layout['body'].split_row(Layout(name='left',ratio=25), Layout(name='center',ratio=45), Layout(discovered,name='right',ratio=30))
     layout['left'].split_column(Layout(pipeline,ratio=3), Layout(_build_activity_panel(state),ratio=2))
     layout['center'].split_column(Layout(operation,ratio=1), Layout(previous,ratio=1), Layout(arm_panel,ratio=2))
     return layout
