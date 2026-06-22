@@ -23,13 +23,18 @@ ensure_python_venv_available || exit 1
 python3 -m pip install -e ".[test]"
 mkdir -p "$DEPS"
 clone_full(){ url="$1"; dir="$2"; if [[ -d "$dir/.git" ]]; then echo "[update] $dir"; git -C "$dir" pull --ff-only || true; else echo "[clone] $url"; git clone "$url" "$dir"; fi; }
-clone_sparse(){ url="$1"; dir="$2"; path="$3"; if [[ -d "$dir/.git" ]]; then echo "[update] $dir"; git -C "$dir" pull --ff-only || true; git -C "$dir" sparse-checkout set "$path"; else echo "[sparse-clone] $url $path"; git clone --filter=blob:none --sparse "$url" "$dir"; git -C "$dir" sparse-checkout set "$path"; fi; }
+clone_sparse_dir(){ url="$1"; dir="$2"; sparse_dir="$3"; if [[ -d "$dir/.git" ]]; then echo "[update] $dir"; git -C "$dir" pull --ff-only || true; else echo "[sparse-dir-clone] $url $sparse_dir"; git clone --filter=blob:none --sparse "$url" "$dir"; fi; git -C "$dir" sparse-checkout set "$sparse_dir"; }
+clone_sparse_file(){ url="$1"; dir="$2"; file_path="$3"; if [[ -d "$dir/.git" ]]; then echo "[update] $dir"; git -C "$dir" pull --ff-only || true; else echo "[sparse-file-clone] $url $file_path"; git clone --filter=blob:none --sparse "$url" "$dir"; fi; git -C "$dir" sparse-checkout set --no-cone "$file_path"; }
+require_file(){ [[ -f "$1" ]] || { echo "[missing] expected dependency file: $1"; exit 1; }; }
 clone_full https://github.com/enk0nl/nsec3-candidate-scheduler "$DEPS/nsec3-candidate-scheduler"
 clone_full https://github.com/enk0nl/nsec3map "$DEPS/nsec3map"
-clone_full https://github.com/enk0nl/dutch-dns-wordlists "$DEPS/dutch-dns-wordlists"
-clone_sparse https://github.com/danielmiessler/SecLists "$DEPS/SecLists" Discovery/DNS
-clone_sparse https://github.com/OpenTaal/opentaal-wordlist "$DEPS/opentaal-wordlist" wordlist.txt
+clone_sparse_file https://github.com/enk0nl/dutch-dns-wordlists "$DEPS/dutch-dns-wordlists" subsubdomains_all_by_occurrance.txt
+clone_sparse_dir https://github.com/danielmiessler/SecLists "$DEPS/SecLists" Discovery/DNS
+clone_sparse_file https://github.com/OpenTaal/opentaal-wordlist "$DEPS/opentaal-wordlist" wordlist.txt
 clone_full https://github.com/enk0nl/pcfg-subdomain-generator "$DEPS/pcfg-subdomain-generator"
+require_file "$DEPS/SecLists/Discovery/DNS/subdomains-top1million-full.7z"
+require_file "$DEPS/opentaal-wordlist/wordlist.txt"
+require_file "$DEPS/dutch-dns-wordlists/subsubdomains_all_by_occurrance.txt"
 python3 -m pip install -e "$DEPS/nsec3-candidate-scheduler" || echo "[warn] scheduler editable install failed"
 echo "[info] nsec3map editable install is intentionally skipped; using direct python3 map.py"
 [[ $SKIP_ASSETS -eq 1 ]] || scripts/prepare-assets.sh --deps-dir "$DEPS" --assets-dir "$ASSETS" "${EXTRA[@]}"

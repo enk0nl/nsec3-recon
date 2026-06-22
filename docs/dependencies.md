@@ -20,3 +20,25 @@ Required system tools and libraries include `git`, `python3`, `python3-venv`, `p
 Optional OSINT tools are `amass` and `subfinder`.
 
 NSEC3 Recon invokes `deps/src/nsec3map/map.py` directly by default and does not require editable nsec3map installation.
+
+## Sparse checkout modes
+
+SecLists uses directory sparse checkout in cone mode:
+
+```bash
+git sparse-checkout set Discovery/DNS
+```
+
+OpenTaal uses single-file sparse checkout in non-cone mode:
+
+```bash
+git sparse-checkout set --no-cone wordlist.txt
+```
+
+Dutch DNS wordlists uses single-file sparse checkout in non-cone mode:
+
+```bash
+git sparse-checkout set --no-cone subsubdomains_all_by_occurrance.txt
+```
+
+Do not use `--skip-checks` as the preferred solution for single files; use `--no-cone`.

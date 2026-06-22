@@ -62,7 +62,7 @@ The installer checks `ensurepip` before running `python3 -m venv .venv`. It prin
 scripts/bootstrap.sh
 ```
 
-The bootstrap clones code repositories fully and data repositories sparsely:
+The bootstrap clones code repositories fully and uses sparse checkout for data repositories. Directory sparse checkout uses normal cone mode. Single-file sparse checkout must use non-cone mode; do not use `--skip-checks`.
 
 ```bash
 git clone --filter=blob:none --sparse https://github.com/danielmiessler/SecLists deps/src/SecLists
@@ -71,7 +71,11 @@ git sparse-checkout set Discovery/DNS
 
 git clone --filter=blob:none --sparse https://github.com/OpenTaal/opentaal-wordlist deps/src/opentaal-wordlist
 cd deps/src/opentaal-wordlist
-git sparse-checkout set wordlist.txt
+git sparse-checkout set --no-cone wordlist.txt
+
+git clone --filter=blob:none --sparse https://github.com/enk0nl/dutch-dns-wordlists deps/src/dutch-dns-wordlists
+cd deps/src/dutch-dns-wordlists
+git sparse-checkout set --no-cone subsubdomains_all_by_occurrance.txt
 ```
 
 SecLists archive expected path:
@@ -84,6 +88,12 @@ OpenTaal expected path:
 
 ```text
 deps/src/opentaal-wordlist/wordlist.txt
+```
+
+Dutch DNS expected path:
+
+```text
+deps/src/dutch-dns-wordlists/subsubdomains_all_by_occurrance.txt
 ```
 
 ## PCFG asset generation

@@ -12,4 +12,23 @@ def test_seclists_sparse_checkout_command_documented():
 
 def test_opentaal_sparse_checkout_command_documented():
     text=Path('docs/installation.md').read_text()+Path('scripts/bootstrap.sh').read_text()
-    assert 'git sparse-checkout set wordlist.txt' in text or 'sparse-checkout set "$path"' in text
+    assert 'git sparse-checkout set --no-cone wordlist.txt' in text or 'sparse-checkout set --no-cone "$file_path"' in text
+
+def test_sparse_checkout_directory_command_for_seclists():
+    text=Path('scripts/bootstrap.sh').read_text()
+    assert 'git -C "$dir" sparse-checkout set "$sparse_dir"' in text
+    assert 'Discovery/DNS' in text
+
+def test_sparse_checkout_file_command_for_opentaal():
+    text=Path('scripts/bootstrap.sh').read_text()
+    assert 'git -C "$dir" sparse-checkout set --no-cone "$file_path"' in text
+    assert 'wordlist.txt' in text
+
+def test_sparse_checkout_file_command_for_dutch_dns_wordlists():
+    text=Path('scripts/bootstrap.sh').read_text()
+    assert 'git -C "$dir" sparse-checkout set --no-cone "$file_path"' in text
+    assert 'subsubdomains_all_by_occurrance.txt' in text
+
+def test_docs_do_not_recommend_skip_checks():
+    text='\n'.join(p.read_text() for p in Path('docs').glob('*.md'))
+    assert '--skip-checks' not in text or 'do not use `--skip-checks`' in text.lower()

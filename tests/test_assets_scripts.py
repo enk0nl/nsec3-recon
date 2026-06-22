@@ -32,3 +32,11 @@ def test_install_script_detects_missing_venv_support():
 def test_no_n3map_editable_install_required():
     text=Path('scripts/bootstrap.sh').read_text()
     assert 'nsec3map editable install is intentionally skipped' in text
+
+def test_opentaal_expected_file_path():
+    assert 'deps/src/opentaal-wordlist/wordlist.txt' in Path('docs/installation.md').read_text()
+    assert 'wordlist.txt' in Path('scripts/prepare-opentaal.sh').read_text()
+
+def test_dutch_dns_expected_file_path():
+    assert 'deps/src/dutch-dns-wordlists/subsubdomains_all_by_occurrance.txt' in Path('docs/installation.md').read_text()
+    assert 'subsubdomains_all_by_occurrance.txt' in Path('scripts/prepare-dutch-dns-wordlists.sh').read_text()
