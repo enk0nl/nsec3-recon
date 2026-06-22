@@ -1,5 +1,5 @@
 from __future__ import annotations
-import threading, time
+import threading
 from pathlib import Path
 from .dashboard_state import DashboardState
 from .scheduler_parser import parse_scheduler_line
@@ -33,11 +33,11 @@ def discover_potfile(workspace) -> Path | None:
 
 class RichDashboard:
     def __init__(self, domain='', workspace=None, refresh_per_second=4, console=None):
-        self.state=DashboardState(domain, workspace); self.refresh_per_second=refresh_per_second; self._lock=threading.RLock(); self._stop=threading.Event(); self._thread=None; self._live=None; self._tail=None
+        self.state=DashboardState(domain, workspace); self.refresh_per_second=min(refresh_per_second, 8); self._lock=threading.RLock(); self._stop=threading.Event(); self._thread=None; self._live=None; self._tail=None; self._dirty=True
         self.console=console
     def start(self):
         from rich.live import Live
-        self._live=Live(self.render(), refresh_per_second=self.refresh_per_second, console=self.console, transient=False)
+        self._live=Live(self.render(), refresh_per_second=self.refresh_per_second, console=self.console, transient=False, screen=False)
         self._live.start()
         self._thread=threading.Thread(target=self._loop, daemon=True); self._thread.start()
     def stop(self):
@@ -50,9 +50,11 @@ class RichDashboard:
         interval=1/max(self.refresh_per_second,1)
         while not self._stop.wait(interval):
             with self._lock:
-                self.poll_external_sources(); self.refresh()
+                self.poll_external_sources()
+                if self._dirty: self.refresh()
     def refresh(self):
         if self._live: self._live.update(self.render())
+        self._dirty=False
     def render(self): return build_dashboard(self.state)
     def handle_event(self,event):
         with self._lock:
@@ -63,11 +65,12 @@ class RichDashboard:
                 else:
                     self.state.recent_scheduler_messages.append(parsed.data['message']); self.state.add_activity(parsed.data['message'])
             if event.stage=='scheduler' and event.event=='started': self.poll_external_sources()
-            self.refresh()
+            self._dirty=True
     def poll_external_sources(self):
         if self._tail is None:
             path=self.state.current_potfile_path or discover_potfile(self.state.workspace)
             if path:
                 self.state.current_potfile_path=str(path); self._tail=PotfileTail(path)
         if self._tail:
-            new=self._tail.poll(); self.state.add_recovered_candidates(new)
+            new=self._tail.poll()
+            if self.state.add_recovered_candidates(new): self._dirty=True

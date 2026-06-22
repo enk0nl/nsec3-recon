@@ -61,6 +61,9 @@ def main(argv=None):
             if completed == 'not_dnssec':
                 print('Reason: nsec3map detect-only did not report NSEC or NSEC3')
         print(f"Summary: {ctx.workspace.root/'reports/summary.json'}")
+        recovered = getattr(getattr(ctx, 'dashboard_controller', None), 'state', None)
+        if recovered is not None:
+            print(f"Recovered candidates: {recovered.recovered_candidate_count}")
         return 0
     except (ValueError, PipelineError) as e:
         print(f"error: {e}", file=sys.stderr)

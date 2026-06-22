@@ -32,8 +32,9 @@ class Pipeline:
             printer=ConsoleEventPrinter(verbose=self.config.verbose); return [printer.handle_event], None, 'plain'
     def setup(self):
         ws=Workspace.create(self.config.domain, self.config.out_dir)
-        print(f"Workspace: {ws.root}", flush=True)
         listeners,dashboard,mode=self._make_listeners(ws)
+        if mode != 'rich':
+            print(f"Workspace: {ws.root}", flush=True)
         ev=EventSink(ws.root/'events.jsonl', listeners=listeners)
         self.ctx=PipelineContext(self.config,ws,ev,dashboard_controller=dashboard,dashboard_mode=mode)
         ev.emit('preflight','workspace_created','workspace created', data={'workspace': str(ws.root)})

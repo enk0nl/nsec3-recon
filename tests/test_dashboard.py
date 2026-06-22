@@ -61,13 +61,14 @@ def test_scheduler_stdout_events_are_not_printed_raw_in_rich_mode(capsys):
     d.handle_event(PipelineEvent('now','scheduler','info','stdout','[1/2] adaptive a new=1',{}))
     assert capsys.readouterr().out == '' and d.state.current_slice['slice_index']==1
 
-def test_dashboard_render_contains_key_sections():
+def test_slice_panel_labels_are_completed_slice_labels():
     s=DashboardState('example.nl','/tmp/ws'); s.scheduler_started=True
     import pytest
     Console=pytest.importorskip('rich.console').Console
     console=Console(record=True, width=160, color_system=None); console.print(__import__('nsec3_recon.ui.widgets', fromlist=['build_dashboard']).build_dashboard(s))
     out=console.export_text()
-    for h in ('Pipeline','Current slice','Previous slice','Arm statistics','Recovered candidates'): assert h in out
+    for h in ('Pipeline','Last completed slice','Previous completed slice','Arm statistics','Recovered candidates','Recent activity'): assert h in out
+    assert 'Current slice' not in out
 
 def test_console_mode_still_works(tmp_path):
     from nsec3_recon.pipeline import Pipeline
@@ -87,3 +88,98 @@ def test_ui_failure_falls_back_in_auto_mode(monkeypatch,tmp_path):
     monkeypatch.setattr(pp.sys.stdout, 'isatty', lambda: True)
     ctx=pp.Pipeline(PipelineConfig('example.nl', out_dir=tmp_path/'r', dashboard='auto')).setup()
     assert ctx.dashboard_mode=='plain' and (ctx.workspace.root/'events.jsonl').exists()
+
+def test_scheduler_slice_state_uses_last_completed_names():
+    s=DashboardState(); s.update_slice({'slice_index':10,'arm':'a'}); s.update_slice({'slice_index':11,'arm':'b'})
+    assert s.last_completed_slice['slice_index']==11 and s.previous_completed_slice['slice_index']==10
+
+def test_parsed_scheduler_lines_do_not_go_to_recent_activity():
+    d=RichDashboard('example.nl')
+    raw='[75/150] adaptive predictive-prefix reason=highest_score queue=4->0 written=4 enq=2 new=1 total=184877 reward=0.167 score=0.49->0.44 runtime=6.0s'
+    d.handle_event(PipelineEvent('now','scheduler','info','stdout',raw,{}))
+    assert d.state.last_completed_slice['slice_index']==75
+    assert not any(raw in a['message'] for a in d.state.recent_activity)
+
+def test_rich_mode_does_not_use_console_printer(monkeypatch,tmp_path):
+    import nsec3_recon.pipeline as pp
+    class FakeDashboard:
+        def __init__(self,*a,**k): self.state=DashboardState()
+        def start(self): pass
+        def handle_event(self,event): pass
+    monkeypatch.setattr(pp, 'resolve_dashboard_mode', lambda *a, **k: 'rich')
+    monkeypatch.setattr(pp, 'RichDashboard', FakeDashboard)
+    ctx=pp.Pipeline(PipelineConfig('example.nl', out_dir=tmp_path/'r', dashboard='rich')).setup()
+    assert ctx.dashboard_mode=='rich' and len(ctx.events.listeners)==1
+    assert ctx.events.listeners[0].__self__.__class__.__name__ == 'FakeDashboard'
+
+def test_live_settings_reduce_flicker(monkeypatch):
+    import sys, types
+    calls={}
+    rich_mod=types.ModuleType('rich'); live_mod=types.ModuleType('rich.live')
+    class FakeLive:
+        def __init__(self, renderable, **kwargs): calls.update(kwargs)
+        def start(self): pass
+        def update(self, renderable): pass
+        def stop(self): pass
+    live_mod.Live=FakeLive
+    monkeypatch.setitem(sys.modules, 'rich', rich_mod); monkeypatch.setitem(sys.modules, 'rich.live', live_mod)
+    monkeypatch.setattr(RichDashboard, 'render', lambda self: 'render')
+    d=RichDashboard(refresh_per_second=20); d.start(); d.stop()
+    assert calls['transient'] is False and calls['screen'] is False and calls['refresh_per_second'] <= 8
+
+def test_final_summary_prints_recovered_candidates(monkeypatch, capsys):
+    from nsec3_recon import cli
+    class Ctx:
+        class Workspace:
+            class Root:
+                def __truediv__(self, other): return '/tmp/summary.json'
+            root=Root()
+        workspace=Workspace(); state={'summary': {'completed_via': 'nsec3_scheduler'}}
+        class Dash:
+            class State: recovered_candidate_count=1234
+            state=State()
+        dashboard_controller=Dash()
+    monkeypatch.setattr(cli, 'Pipeline', lambda cfg: type('P', (), {'run': lambda self: Ctx()})())
+    assert cli.main(['example.nl','--dashboard','rich']) == 0
+    out=capsys.readouterr().out
+    assert 'Completed via:' in out and 'Summary:' in out and 'Recovered candidates: 1234' in out
+
+def _render_text(state):
+    import pytest
+    Console=pytest.importorskip('rich.console').Console
+    console=Console(record=True, width=180, height=45, color_system=None)
+    console.print(__import__('nsec3_recon.ui.widgets', fromlist=['build_dashboard']).build_dashboard(state))
+    return console.export_text()
+
+def test_dashboard_render_contains_key_sections():
+    s=DashboardState('example.nl','/tmp/ws'); s.scheduler_started=True
+    out=_render_text(s)
+    for h in ('Pipeline','Last completed slice','Previous completed slice','Arm statistics','Recovered candidates','Recent activity'): assert h in out
+
+def test_arm_stats_headers_are_readable():
+    s=DashboardState('example.nl','/tmp/ws'); s.update_slice({'slice_index':1,'arm':'feedback/predictive-prefix','new':1,'reward':1.2,'runtime_seconds':3.4})
+    out=_render_text(s)
+    for h in ('Arm','Runs','New','Last','Avg R','Last R','Avg t','Seen'): assert h in out
+    for bad in ('to...','avg_...','las...'): assert bad not in out
+
+def test_arm_stats_numeric_formatting():
+    s=DashboardState('example.nl','/tmp/ws'); s.update_slice({'slice_index':1,'arm':'a','new':1,'reward':1.234,'runtime_seconds':3.45})
+    out=_render_text(s)
+    assert '1.23' in out and '3.5s' in out
+
+def test_arm_stats_limits_rows_and_reports_more():
+    s=DashboardState('example.nl','/tmp/ws')
+    for i in range(12): s.update_slice({'slice_index':i+1,'arm':f'arm-{i}','new':i,'reward':float(i),'runtime_seconds':1.0})
+    out=_render_text(s)
+    assert '+4 more arms' in out
+
+def test_recovered_candidates_have_timestamps():
+    s=DashboardState('example.nl','/tmp/ws'); s.current_potfile_path='/tmp/ws/scheduler/run.pot'; s.add_recovered_candidates(['api'])
+    out=_render_text(s)
+    import re
+    assert re.search(r'\d{2}:\d{2}:\d{2}\s+api', out)
+
+def test_recovered_candidates_panel_prominent():
+    s=DashboardState('example.nl','/tmp/ws')
+    out=_render_text(s)
+    assert 'Recovered candidates' in out and 'total=0' in out

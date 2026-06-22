@@ -1,11 +1,11 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from collections import deque
-from pathlib import Path
+from datetime import datetime
 import time
 
 STAGES = ['preflight','dns_probe','axfr','nsec3map_detect','nsec3map_enumeration','hashcatify','scheduler','summarize']
-_STAGE_MAP = {'nsec3map': 'nsec3map_detect'}
+LOW_VALUE_EVENTS = {'workspace_created','python_deps_ok','dependency_check_ok','tool_version_ok','model_assets_ok','path_check_ok'}
 
 @dataclass
 class StageState:
@@ -41,14 +41,18 @@ class DashboardState:
         self.completed_via=None; self.overall_status='running'; self.last_error=None
         self.warnings_count=0; self.errors_count=0; self.event_count=0
         self.stages={s: StageState(s) for s in STAGES}
-        self.scheduler_started=False; self.current_slice=None; self.previous_slice=None; self.slice_history=deque(maxlen=100)
+        self.scheduler_started=False; self.last_completed_slice=None; self.previous_completed_slice=None; self.slice_history=deque(maxlen=100)
         self.arm_stats={}; self.recent_activity=deque(maxlen=80); self.recent_scheduler_messages=deque(maxlen=80)
         self.recovered_candidates=deque(maxlen=200); self._candidate_seen=set(); self.recovered_candidate_count=0
         self.current_potfile_path=None; self.last_scheduler_stdout=None; self.last_scheduler_stderr=None; self.scheduler_runtime_started_at=None
     @property
+    def current_slice(self): return self.last_completed_slice
+    @property
+    def previous_slice(self): return self.previous_completed_slice
+    @property
     def elapsed_seconds(self): return time.time()-self.started_at
     def add_activity(self, message, level='info'):
-        if message: self.recent_activity.append({'ts': time.time(), 'level': level, 'message': str(message)[:240]})
+        if message: self.recent_activity.append({'ts': time.time(), 'level': level, 'message': str(message)[:180]})
     def handle_event(self, event):
         self.event_count += 1
         if event.level == 'warning': self.warnings_count += 1
@@ -66,16 +70,27 @@ class DashboardState:
         if event.stage=='scheduler':
             if event.event=='started': self.scheduler_started=True; self.scheduler_runtime_started_at=time.time()
             if event.event=='stdout': self.last_scheduler_stdout=event.message
-            if event.event=='stderr': self.last_scheduler_stderr=event.message; self.add_activity('scheduler stderr: '+event.message,'warning')
+            if event.event=='stderr': self.last_scheduler_stderr=event.message; self.add_activity('[scheduler] stderr: '+event.message,'warning')
         if event.event in ('summary_written','completed') and data.get('completed_via'):
             self.completed_via=data.get('completed_via'); self.overall_status='completed'
-        if event.level in ('warning','error') or event.event not in ('stdout',): self.add_activity(f"{event.stage}: {event.message}", event.level)
+        if self._should_add_activity(event): self.add_activity(self._format_activity(event, data), event.level)
+    def _should_add_activity(self, event):
+        if event.event == 'stdout': return False
+        if event.level in ('warning','error'): return True
+        if event.event in LOW_VALUE_EVENTS: return False
+        return event.event in {'started','completed','detect_completed','detect_not_dnssec','detect_ambiguous','axfr_refused','nsec_names_extracted'} or event.event.endswith('_completed')
+    def _format_activity(self, event, data):
+        if event.stage == 'hashcatify' and data.get('hash_count') is not None:
+            return f"[hashcatify] hash_count={data.get('hash_count')}"
+        if event.stage == 'nsec3map' and data.get('zone_type'):
+            return f"[nsec3map] detected zone_type={data.get('zone_type')}"
+        return f"[{event.stage}] {event.message}"
     def _event_stage(self,event):
         if event.stage=='nsec3map':
             return 'nsec3map_detect' if 'detect' in event.event else 'nsec3map_enumeration'
         return event.stage
     def update_slice(self, data):
-        self.previous_slice=self.current_slice; self.current_slice=dict(data); self.slice_history.append(dict(data)); self.scheduler_started=True
+        self.previous_completed_slice=self.last_completed_slice; self.last_completed_slice=dict(data); self.slice_history.append(dict(data)); self.scheduler_started=True
         arm=data.get('arm') or 'unknown'
         for a in self.arm_stats.values(): a.active=False
         st=self.arm_stats.setdefault(arm, ArmStats(arm)); st.active=True; st.run_count+=1
@@ -89,5 +104,7 @@ class DashboardState:
         added=[]
         for c in candidates or []:
             if c and c not in self._candidate_seen:
-                self._candidate_seen.add(c); self.recovered_candidate_count+=1; item={'ts':time.time(),'candidate':c}; self.recovered_candidates.appendleft(item); added.append(c)
+                self._candidate_seen.add(c); self.recovered_candidate_count+=1
+                item={'first_seen_at':time.time(),'timestamp':datetime.now().strftime('%H:%M:%S'),'candidate':c}
+                self.recovered_candidates.append(item); added.append(c)
         return added

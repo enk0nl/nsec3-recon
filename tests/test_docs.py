@@ -133,3 +133,14 @@ def test_docs_do_not_mention_no_tui():
     from pathlib import Path
     text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
     assert '--no-tui' not in text
+
+def test_no_current_slice_label_in_docs():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert 'Current slice' not in text and 'current/previous slice' not in text
+
+def test_docs_explain_last_completed_slice_semantics():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert 'scheduler slice lines are emitted after completion' in text.lower()
+    assert 'Last completed slice' in text and 'Previous completed slice' in text
