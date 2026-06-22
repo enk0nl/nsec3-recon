@@ -6,7 +6,7 @@ NSEC3 Recon orchestrates DNS AXFR checks, DNSSEC probing, NSEC/NSEC3 walking thr
 
 ```bash
 python3 -m pip install -e ".[test]"
-scripts/bootstrap-demo.sh --skip-pcfg
+scripts/bootstrap-default.sh --skip-pcfg
 nsec3-recon example.nl --dry-run
 nsec3-recon example.nl
 ```

@@ -26,12 +26,13 @@ class Pipeline:
         ctx=self.setup()
         try:
             preflight.run(ctx)
-            render_scheduler_config(ctx.config.domain, ctx.config.assets_dir, ctx.workspace.root/'config/scheduler_config.json', ctx.config.scheduler_config)
+            render_scheduler_config(ctx.config.domain, ctx.config.assets_dir, ctx.workspace.root/'config/scheduler_config.json', ctx.config.scheduler_config or ctx.config.config_template)
             if ctx.config.dry_run:
                 hf=ctx.workspace.root/'nsec3map/nsec3map_hashfile.hash'; sc=ctx.workspace.root/'config/scheduler_config.json'
                 print('Planned commands:')
-                print(' '.join([ctx.config.nsec3map_bin,'-v','-o',str(ctx.workspace.root/'nsec3map/zone.txt'),ctx.config.domain]))
-                print(' '.join([ctx.config.hashcatify_bin,str(ctx.workspace.root/'nsec3map/zone.txt'),str(hf)]))
+                print(' '.join([ctx.config.nsec3map_python, 'map.py', '--detect-only', ctx.config.domain]))
+                print(' '.join([ctx.config.nsec3map_python, 'map.py', f"--output={ctx.workspace.root/'nsec3map/zone.txt'}", ctx.config.domain]))
+                print(' '.join([ctx.config.nsec3map_python, '<hashcatify.py>', str(ctx.workspace.root/'nsec3map/zone.txt'), str(hf)]))
                 print(' '.join(ctx.config.scheduler_command(ctx.workspace.root,hf,sc)))
                 write_summary(ctx,'dry_run'); return ctx
             dns_probe.run(ctx); ax=axfr.run(ctx)

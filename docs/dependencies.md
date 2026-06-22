@@ -1,24 +1,22 @@
-# NSEC3 Recon
+# Dependencies
 
-NSEC3 Recon orchestrates DNS AXFR checks, DNSSEC probing, NSEC/NSEC3 walking through the external `nsec3map` fork, NSEC3 hashcat target generation, and adaptive cracking through the external `nsec3-candidate-scheduler`.
+External source repositories are cloned under `deps/src/` and are not vendored:
 
-## Quick start
+- https://github.com/enk0nl/nsec3-candidate-scheduler -> `deps/src/nsec3-candidate-scheduler`
+- https://github.com/enk0nl/nsec3map -> `deps/src/nsec3map`
+- https://github.com/enk0nl/dutch-dns-wordlists -> `deps/src/dutch-dns-wordlists`
+- https://github.com/OpenTaal/opentaal-wordlist -> `deps/src/opentaal-wordlist`
+- https://github.com/danielmiessler/SecLists -> `deps/src/SecLists`
+- https://github.com/enk0nl/pcfg-subdomain-generator -> `deps/src/pcfg-subdomain-generator`
 
-```bash
-python3 -m pip install -e ".[test]"
-scripts/bootstrap-demo.sh --skip-pcfg
-nsec3-recon example.nl --dry-run
-nsec3-recon example.nl
-```
+Generated assets live under:
 
-## Boundaries
+- `assets/wordlists/`
+- `assets/models/`
+- `assets/generated/`
 
-External projects are cloned under `deps/src/` and generated data is written under `assets/`. Neither directory is committed. The workspace for each run is under `runs/<domain>-<timestamp>/` and contains events, stage outputs, scheduler config, and reports.
+Required system tools and libraries include `git`, `python3`, `python3-venv`, `python3-dev`, `gcc`/`build-essential`, `libssl-dev`/`libssl3`, `p7zip-full`, and `hashcat`.
 
-## Dependencies
+Optional OSINT tools are `amass` and `subfinder`.
 
-Required Python dependencies are `dnspython` and `rich`. Runtime tools include `n3map`, `n3map-hashcatify`, `python3 -m nsec3_candidate_scheduler`, and `hashcat` for the NSEC3 path. Amass and Subfinder are optional OSINT arms.
-
-## Pipeline
-
-The default path is AXFR, DNSSEC probe, nsec3map, NSEC short-circuit, or NSEC3 hashcatify and scheduler. `--dry-run` creates the workspace and rendered scheduler config and prints planned commands without network or external tool execution.
+NSEC3 Recon invokes `deps/src/nsec3map/map.py` directly by default and does not require editable nsec3map installation.
