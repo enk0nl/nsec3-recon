@@ -4,9 +4,10 @@ from pathlib import Path
 SPEC = importlib.util.spec_from_file_location('seclists_sort', 'scripts/seclists_fqdn_and_labels_external_sort.py')
 mod = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(mod)
 
-def run_combiner(tmp_path, input_dir, *args):
+def run_combiner(tmp_path, input_dir, *args, keep_counts=False):
     out_prefix=tmp_path/'out/seclists'
-    mod.main(['--input-dir', str(input_dir), '--out-prefix', str(out_prefix), '--sort-memory', '1M', '--tmp-dir', str(tmp_path), *args])
+    extra = ['--keep-counts'] if keep_counts else []
+    mod.main(['--input-dir', str(input_dir), '--out-prefix', str(out_prefix), '--sort-memory', '1M', '--tmp-dir', str(tmp_path), *extra, *args])
     return out_prefix.with_name('seclists_total_counts.tsv'), out_prefix.with_name('seclists_total.txt')
 
 def counts(path):
@@ -30,19 +31,19 @@ def test_seclists_combiner_includes_extra_input(tmp_path):
 
 def test_seclists_combiner_frequency_sort(tmp_path):
     d=tmp_path/'dns'; d.mkdir(); (d/'a.txt').write_text('api.example.nl\napi.test.nl\n')
-    c,v=run_combiner(tmp_path,d)
+    c,v=run_combiner(tmp_path,d, keep_counts=True)
     lines=c.read_text().splitlines()
     assert lines[0].startswith('2\tapi')
     assert counts(c)['api'] > counts(c)['api.example.nl']
 
 def test_seclists_combiner_avoids_double_count_single_label_by_default(tmp_path):
     d=tmp_path/'dns'; d.mkdir(); (d/'a.txt').write_text('www\n')
-    c,v=run_combiner(tmp_path,d)
+    c,v=run_combiner(tmp_path,d, keep_counts=True)
     assert counts(c)['www']==1
 
 def test_seclists_combiner_can_double_count_single_label_when_enabled(tmp_path):
     d=tmp_path/'dns'; d.mkdir(); (d/'a.txt').write_text('www\n')
-    c,v=run_combiner(tmp_path,d,'--double-count-single-labels')
+    c,v=run_combiner(tmp_path,d,'--double-count-single-labels', keep_counts=True)
     assert counts(c)['www']==2
 
 def test_seclists_values_file_starts_with_empty_line(tmp_path):
@@ -52,5 +53,5 @@ def test_seclists_values_file_starts_with_empty_line(tmp_path):
 
 def test_seclists_counts_file_does_not_start_with_empty_candidate(tmp_path):
     d=tmp_path/'dns'; d.mkdir(); (d/'a.txt').write_text('www\n')
-    c,v=run_combiner(tmp_path,d)
+    c,v=run_combiner(tmp_path,d, keep_counts=True)
     assert c.read_text().splitlines()[0] == '1\twww'

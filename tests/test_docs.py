@@ -63,3 +63,7 @@ def test_docs_include_subfinder_install_command():
 def test_docs_warn_main_and_latest_are_moving_targets():
     text=Path('docs/installation.md').read_text().lower()
     assert '@main' in text and '@latest' in text and 'version verification after install is mandatory' in text
+
+def test_docs_do_not_reference_seclists_full_total():
+    text='\n'.join(p.read_text() for p in Path('docs').glob('*.md'))
+    assert 'seclists-full-total.txt' not in text

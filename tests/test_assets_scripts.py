@@ -52,14 +52,14 @@ def test_prepare_seclists_does_not_extract_archive_into_dns_dir():
     assert 'tmp=$(mktemp -d)' in text
     assert '7z" x -o"$tmp"' in text or '"$EX" x -o"$tmp"' in text
 
-def test_prepare_seclists_creates_scheduler_compat_wordlist(tmp_path):
+def test_prepare_seclists_outputs_final_wordlist_only_by_default(tmp_path):
     src=tmp_path/'archive.txt'; src.write_text('www\napi.example.nl\n')
     assets=tmp_path/'assets'
     subprocess.check_call(['bash','scripts/prepare-seclists.sh','--archive',str(src),'--assets-dir',str(assets)])
-    compat=assets/'wordlists/seclists-full-total.txt'
-    assert compat.exists()
+    assert (assets/'wordlists/seclists_total.txt').exists()
+    assert not (assets/'wordlists/seclists_total_counts.tsv').exists()
+    assert not (assets/'wordlists/seclists-full-total.txt').exists()
     assert (assets/'wordlists/seclists_total.txt').read_bytes().startswith(b'\n')
-    assert not (assets/'wordlists/seclists_total_counts.tsv').read_bytes().startswith(b'\n')
 
 def test_prevalence_cleaner_formats(tmp_path):
     src=tmp_path/'in.txt'; src.write_text('www,123\n123,www\nwww 123\n123 www\napi\n')
@@ -78,3 +78,16 @@ def test_install_go_tools_verifies_versions_after_install():
     assert 'scripts/check-tools.sh --strict' in text
     assert 'AMASS_BIN="$HOME/go/bin/amass"' in text
     assert 'SUBFINDER_BIN="$HOME/go/bin/subfinder"' in text
+
+
+def test_seclists_keep_counts_option_writes_counts_file(tmp_path):
+    src=tmp_path/'archive.txt'; src.write_text('www\napi.example.nl\n')
+    assets=tmp_path/'assets'
+    subprocess.check_call(['bash','scripts/prepare-seclists.sh','--archive',str(src),'--assets-dir',str(assets),'--keep-counts'])
+    assert (assets/'wordlists/seclists_total_counts.tsv').exists()
+
+def test_seclists_no_compat_symlink_by_default(tmp_path):
+    src=tmp_path/'archive.txt'; src.write_text('www\n')
+    assets=tmp_path/'assets'
+    subprocess.check_call(['bash','scripts/prepare-seclists.sh','--archive',str(src),'--assets-dir',str(assets)])
+    assert not (assets/'wordlists/seclists-full-total.txt').exists()

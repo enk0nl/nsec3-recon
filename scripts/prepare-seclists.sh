@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-ARCHIVE=""; ARCHIVE_SUPPLIED=0; DEPS="deps/src/SecLists"; ASSETS="assets"
-while [[ $# -gt 0 ]]; do case "$1" in --archive) ARCHIVE="$2"; ARCHIVE_SUPPLIED=1; shift 2;; --deps-dir) DEPS="$2"; shift 2;; --assets-dir) ASSETS="$2"; shift 2;; *) echo "unknown arg $1"; exit 2;; esac; done
+ARCHIVE=""; ARCHIVE_SUPPLIED=0; DEPS="deps/src/SecLists"; ASSETS="assets"; KEEP_COUNTS=0
+while [[ $# -gt 0 ]]; do case "$1" in --archive) ARCHIVE="$2"; ARCHIVE_SUPPLIED=1; shift 2;; --deps-dir) DEPS="$2"; shift 2;; --assets-dir) ASSETS="$2"; shift 2;; --keep-counts) KEEP_COUNTS=1; shift;; *) echo "unknown arg $1"; exit 2;; esac; done
 DNS_DIR="$DEPS/Discovery/DNS"
 ARCHIVE=${ARCHIVE:-$DNS_DIR/subdomains-top1million-full.7z}
 mkdir -p "$ASSETS/wordlists"
@@ -35,16 +35,13 @@ with open(src,errors='ignore') as f, open(out,'w') as o:
 PY
 TMP_ARGS=()
 [[ -n "${TMP_DIR:-}" ]] && TMP_ARGS+=(--tmp-dir "$TMP_DIR")
+[[ $KEEP_COUNTS -eq 1 ]] && TMP_ARGS+=(--keep-counts)
 python3 scripts/seclists_fqdn_and_labels_external_sort.py \
   --input-dir "$DNS_DIR" \
   --extra-input "$CLEAN" \
   --out-prefix "$ASSETS/wordlists/seclists" \
   --sort-memory "${SORT_MEMORY:-1G}" \
   "${TMP_ARGS[@]}"
-COMPAT="$ASSETS/wordlists/seclists-full-total.txt"
-TARGET="seclists_total.txt"
-ln -sf "$TARGET" "$COMPAT" 2>/dev/null || cp -f "$ASSETS/wordlists/$TARGET" "$COMPAT"
 echo "[ok] cleaned top1m full archive: $CLEAN"
-echo "[ok] combined SecLists DNS wordlists: $ASSETS/wordlists/seclists_total.txt"
-echo "[ok] counts: $ASSETS/wordlists/seclists_total_counts.tsv"
-echo "[ok] scheduler wordlist: $COMPAT"
+echo "[ok] combined SecLists DNS wordlist: $ASSETS/wordlists/seclists_total.txt"
+if [[ $KEEP_COUNTS -eq 1 ]]; then echo "[ok] counts: $ASSETS/wordlists/seclists_total_counts.tsv"; fi

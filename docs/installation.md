@@ -108,7 +108,7 @@ The product script writes `assets/wordlists/rfc1035_pcfg_top100000000.txt` throu
 ## Asset layout
 
 ```text
-assets/wordlists/seclists-full-total.txt
+assets/wordlists/seclists_total.txt
 assets/wordlists/rfc1035_pcfg_top100000000.txt
 assets/wordlists/subsubdomains_all_by_occurrance.txt
 assets/wordlists/opentaal-wordlist.txt
@@ -204,12 +204,16 @@ SecLists is sparse-checked out with only `Discovery/DNS`. Asset preparation extr
 
 The combiner reads all Discovery/DNS `*.txt` files plus the cleaned `subdomains-top1million-full.7z` output, emits both original FQDN-like candidates and labels split on dots, and frequency-sorts the result using GNU `sort` and `uniq`.
 
-Outputs:
+Default output:
+
+```text
+assets/wordlists/seclists_total.txt
+```
+
+Optional debug output with `--keep-counts`:
 
 ```text
 assets/wordlists/seclists_total_counts.tsv
-assets/wordlists/seclists_total.txt
-assets/wordlists/seclists-full-total.txt
 ```
 
-`seclists_total.txt` and the scheduler-compatible `seclists-full-total.txt` start with exactly one leading empty line. `seclists_total_counts.tsv` does not include a leading empty candidate. `sort` and `uniq` are provided by GNU coreutils; `p7zip-full` provides `7z`/`7za` for the archive extraction.
+`seclists_total.txt` starts with exactly one leading empty line. `seclists_total_counts.tsv` is not written unless `--keep-counts` is passed and does not include a leading empty candidate. `sort` and `uniq` are provided by GNU coreutils; `p7zip-full` provides `7z`/`7za` for the archive extraction.

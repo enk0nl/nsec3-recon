@@ -3,7 +3,7 @@
 "alpha": 0.15,
 "epsilon": 0.15,
 "arms": [
-{"name":"dict/seclists","type":"dictionary","source":"seclists","count_candidates_at_startup":true,"wordlist":"assets/wordlists/seclists-full-total.txt"},
+{"name":"dict/seclists","type":"dictionary","source":"seclists","count_candidates_at_startup":true,"wordlist":"assets/wordlists/seclists_total.txt"},
 {"name":"dict/rfc1035_pcfg","type":"dictionary","source":"pcfg","candidate_count":100000000,"count_candidates_at_startup":false,"wordlist":"assets/wordlists/rfc1035_pcfg_top100000000.txt"},
 {"name":"dict/nsec_data","type":"dictionary","source":"dns-zone-data","count_candidates_at_startup":true,"wordlist":"assets/wordlists/subsubdomains_all_by_occurrance.txt"},
 {"name":"dict/opentaal_dutch","type":"dictionary","source":"opentaal","count_candidates_at_startup":true,"wordlist":"assets/wordlists/opentaal-wordlist.txt"},

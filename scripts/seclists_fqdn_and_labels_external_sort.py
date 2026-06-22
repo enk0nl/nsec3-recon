@@ -51,10 +51,11 @@ def stream_candidates(files: list[Path], candidates_path: Path, keep_case: bool,
                             out.write(candidate + "\n")
 
 
-def run_sort_count(candidates_path: Path, out_prefix: Path, sort_memory: str, tmp_dir: Path, min_count: int, leading_empty_line: bool) -> tuple[Path, Path]:
+def run_sort_count(candidates_path: Path, out_prefix: Path, sort_memory: str, tmp_dir: Path, min_count: int, leading_empty_line: bool, keep_counts: bool) -> tuple[Path | None, Path]:
     sorted_path = candidates_path.with_suffix(".sorted")
     unsorted_counts = candidates_path.with_suffix(".counts.tsv")
-    counts_path = out_prefix.with_name(out_prefix.name + "_total_counts.tsv")
+    output_counts_path = out_prefix.with_name(out_prefix.name + "_total_counts.tsv")
+    counts_path = candidates_path.with_suffix(".final_counts.tsv")
     values_path = out_prefix.with_name(out_prefix.name + "_total.txt")
     subprocess.run(["sort", "-S", sort_memory, "-T", str(tmp_dir), str(candidates_path)], check=True, stdout=sorted_path.open("w", encoding="utf-8"))
     uniq = subprocess.run(["uniq", "-c", str(sorted_path)], check=True, text=True, capture_output=True)
@@ -75,7 +76,11 @@ def run_sort_count(candidates_path: Path, out_prefix: Path, sort_memory: str, tm
             parts = line.rstrip("\n").split("\t", 1)
             if len(parts) == 2:
                 out.write(parts[1] + "\n")
-    return counts_path, values_path
+    if keep_counts:
+        output_counts_path.parent.mkdir(parents=True, exist_ok=True)
+        output_counts_path.write_text(counts_path.read_text(encoding="utf-8"), encoding="utf-8")
+        return output_counts_path, values_path
+    return None, values_path
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -89,6 +94,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--keep-trailing-dot", action="store_true")
     parser.add_argument("--double-count-single-labels", action="store_true")
     parser.add_argument("--sort-memory", default="1G")
+    parser.add_argument("--keep-counts", action="store_true")
     parser.add_argument("--tmp-dir", type=Path, default=Path(tempfile.gettempdir()))
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--leading-empty-line", dest="leading_empty_line", action="store_true", default=True)
@@ -104,7 +110,7 @@ def main(argv=None) -> int:
     with tempfile.TemporaryDirectory(dir=args.tmp_dir) as tmp:
         candidates_path = Path(tmp) / "candidates.txt"
         stream_candidates(files, candidates_path, args.keep_case, args.keep_trailing_dot, args.double_count_single_labels)
-        run_sort_count(candidates_path, args.out_prefix, args.sort_memory, Path(tmp), args.min_count, args.leading_empty_line)
+        run_sort_count(candidates_path, args.out_prefix, args.sort_memory, Path(tmp), args.min_count, args.leading_empty_line, args.keep_counts)
     return 0
 
 
