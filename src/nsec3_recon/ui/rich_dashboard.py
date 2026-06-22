@@ -1,3 +1,73 @@
+from __future__ import annotations
+import threading, time
+from pathlib import Path
+from .dashboard_state import DashboardState
+from .scheduler_parser import parse_scheduler_line
+from .widgets import build_dashboard
+from ..adapters.potfile import PotfileTail
+
+DASHBOARD_MODES={'auto','rich','plain','off'}
+
+def rich_available() -> bool:
+    try:
+        import rich  # noqa: F401
+        return True
+    except Exception:
+        return False
+
+def resolve_dashboard_mode(mode: str='auto', stdout_isatty: bool=False, rich_is_available: bool|None=None) -> str:
+    if mode not in DASHBOARD_MODES: raise ValueError(f"invalid dashboard mode: {mode}")
+    if mode in {'plain','off'}: return mode
+    avail = rich_available() if rich_is_available is None else rich_is_available
+    if mode == 'rich': return 'rich' if avail else 'plain'
+    return 'rich' if stdout_isatty and avail else 'plain'
+
+def discover_potfile(workspace) -> Path | None:
+    root=Path(workspace)/'scheduler'
+    names=('*.potfile','*.pot','hashcat.potfile','hashcat.pot','run.pot','potfile.txt')
+    if not root.exists(): return None
+    for pat in names:
+        for p in root.rglob(pat):
+            if p.is_file(): return p
+    return None
+
 class RichDashboard:
-    def __init__(self,*a,**k): self.events=[]
-    def handle_event(self,event): self.events.append(event)
+    def __init__(self, domain='', workspace=None, refresh_per_second=4, console=None):
+        self.state=DashboardState(domain, workspace); self.refresh_per_second=refresh_per_second; self._lock=threading.RLock(); self._stop=threading.Event(); self._thread=None; self._live=None; self._tail=None
+        self.console=console
+    def start(self):
+        from rich.live import Live
+        self._live=Live(self.render(), refresh_per_second=self.refresh_per_second, console=self.console, transient=False)
+        self._live.start()
+        self._thread=threading.Thread(target=self._loop, daemon=True); self._thread.start()
+    def stop(self):
+        self._stop.set()
+        if self._thread: self._thread.join(timeout=2)
+        if self._live:
+            with self._lock: self._live.update(self.render())
+            self._live.stop()
+    def _loop(self):
+        interval=1/max(self.refresh_per_second,1)
+        while not self._stop.wait(interval):
+            with self._lock:
+                self.poll_external_sources(); self.refresh()
+    def refresh(self):
+        if self._live: self._live.update(self.render())
+    def render(self): return build_dashboard(self.state)
+    def handle_event(self,event):
+        with self._lock:
+            self.state.handle_event(event)
+            if event.stage=='scheduler' and event.event=='stdout':
+                parsed=parse_scheduler_line(event.message)
+                if parsed.parsed: self.state.update_slice(parsed.data)
+                else:
+                    self.state.recent_scheduler_messages.append(parsed.data['message']); self.state.add_activity(parsed.data['message'])
+            if event.stage=='scheduler' and event.event=='started': self.poll_external_sources()
+            self.refresh()
+    def poll_external_sources(self):
+        if self._tail is None:
+            path=self.state.current_potfile_path or discover_potfile(self.state.workspace)
+            if path:
+                self.state.current_potfile_path=str(path); self._tail=PotfileTail(path)
+        if self._tail:
+            new=self._tail.poll(); self.state.add_recovered_candidates(new)

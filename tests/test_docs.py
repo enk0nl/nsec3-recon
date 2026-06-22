@@ -123,3 +123,13 @@ def test_docs_explain_model_asset_preparation():
     assert 'deps/src/nsec3-candidate-scheduler/models' in text
     assert 'assets/models' in text
     assert 'scripts/prepare-models.sh' in text
+
+def test_docs_document_dashboard_modes():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert '--dashboard auto|rich|plain|off' in text
+
+def test_docs_do_not_mention_no_tui():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert '--no-tui' not in text

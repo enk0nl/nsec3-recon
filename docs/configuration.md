@@ -22,3 +22,7 @@ Required Python dependencies are `dnspython` and `rich`. Runtime tools include `
 ## Pipeline
 
 The default path is AXFR, DNSSEC probe, nsec3map, NSEC short-circuit, or NSEC3 hashcatify and scheduler. `--dry-run` creates the workspace and rendered scheduler config and prints planned commands without network or external tool execution.
+
+### Dashboard modes
+
+Use `--dashboard auto|rich|plain|off` to choose live output. `auto` opens the Rich dashboard in an interactive terminal and otherwise uses plain console events. `rich` forces the dashboard with fallback warning if initialization fails, `plain` forces one-line event output, and `off` suppresses live event output while still writing `events.jsonl` and the final summary. The dashboard includes the target, workspace, pipeline progression, current operation, scheduler current/previous slice, arm statistics, and recovered candidates tailed from scheduler potfiles.

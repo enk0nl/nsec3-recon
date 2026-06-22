@@ -26,3 +26,7 @@ The default path is AXFR, DNSSEC probe, nsec3map, NSEC short-circuit, or NSEC3 h
 ## DNSSEC routing authority
 
 The DNS probe is advisory and records DNSKEY/DS evidence for troubleshooting. It is intentionally not terminal truth. After AXFR is unavailable, `nsec3map` detect-only is authoritative for NSEC/NSEC3 routing, so a false-negative DNS probe does not prevent NSEC or NSEC3 enumeration.
+
+### Dashboard modes
+
+Use `--dashboard auto|rich|plain|off` to choose live output. `auto` opens the Rich dashboard in an interactive terminal and otherwise uses plain console events. `rich` forces the dashboard with fallback warning if initialization fails, `plain` forces one-line event output, and `off` suppresses live event output while still writing `events.jsonl` and the final summary. The dashboard includes the target, workspace, pipeline progression, current operation, scheduler current/previous slice, arm statistics, and recovered candidates tailed from scheduler potfiles.

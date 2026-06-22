@@ -15,6 +15,8 @@ def write_summary(ctx, completed_via, failed_stage=None, error=None):
     if failed_stage: obj.update({'failed_stage':failed_stage,'error':error})
     ctx.workspace.write_json('reports/summary.json', obj)
     ctx.state['summary'] = obj
+    if getattr(ctx, 'events', None):
+        ctx.events.emit('summarize', 'completed', 'summary written', data=obj)
     lines=[f"# NSEC3 Recon summary",'',f"Domain: `{ctx.config.domain}`",f"Completed via: `{completed_via}`",'','## Artifacts']+[f"- {k}: `{v}`" for k,v in artifacts.items()]
     (ctx.workspace.root/'reports/summary.md').write_text('\n'.join(lines)+'\n')
     return obj
