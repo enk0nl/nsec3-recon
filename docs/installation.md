@@ -200,3 +200,19 @@ go version
 ```
 
 If Debian/Ubuntu apt provides an older Go version, install Go from the upstream Go distribution or another trusted package source. After installing Go, ensure `$HOME/go/bin` is in `PATH`. If Subfinder is installed at `$HOME/go/bin/subfinder`, the default scheduler config can use that path directly.
+
+## SecLists DNS asset generation
+
+SecLists is sparse-checked out with only `Discovery/DNS`. Asset preparation extracts `subdomains-top1million-full.7z` to a temporary directory, removes the prevalence/count column from the extracted archive, and passes the cleaned output as an extra input to the external-sort combiner.
+
+The combiner reads all Discovery/DNS `*.txt` files plus the cleaned `subdomains-top1million-full.7z` output, emits both original FQDN-like candidates and labels split on dots, and frequency-sorts the result using GNU `sort` and `uniq`.
+
+Outputs:
+
+```text
+assets/wordlists/seclists_total_counts.tsv
+assets/wordlists/seclists_total.txt
+assets/wordlists/seclists-full-total.txt
+```
+
+`seclists_total.txt` and the scheduler-compatible `seclists-full-total.txt` start with exactly one leading empty line. `seclists_total_counts.tsv` does not include a leading empty candidate. `sort` and `uniq` are provided by GNU coreutils; `p7zip-full` provides `7z`/`7za` for the archive extraction.

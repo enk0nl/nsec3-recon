@@ -46,3 +46,10 @@ def test_install_docs_warn_apt_hashcat_may_be_old():
 def test_install_docs_include_go_124_for_subfinder():
     text=Path('docs/installation.md').read_text()
     assert 'Go 1.24 or newer' in text
+
+def test_docs_describe_combining_all_discovery_dns_wordlists():
+    text=(Path('docs/dependencies.md').read_text()+Path('docs/installation.md').read_text()).lower()
+    assert 'all discovery/dns `*.txt`' in text
+    assert 'cleaned `subdomains-top1million-full.7z`' in text or 'cleaned subdomains-top1million-full.7z' in text
+    assert 'labels split on dots' in text
+    assert 'leading empty line' in text

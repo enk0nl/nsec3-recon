@@ -50,3 +50,11 @@ Do not use `--skip-checks` as the preferred solution for single files; use `--no
 - `subfinder >= 2.14.0`
 
 Run `scripts/check-tools.sh` to verify installed versions. Use `scripts/check-tools.sh --strict` to make missing or outdated Amass/Subfinder errors, and `scripts/check-tools.sh --no-osint` to skip OSINT tool checks.
+
+## SecLists DNS wordlist processing
+
+SecLists is sparse-checked out with only `Discovery/DNS`. `scripts/prepare-seclists.sh` extracts `Discovery/DNS/subdomains-top1million-full.7z` into a temporary directory, removes the prevalence/count column, and writes `assets/wordlists/seclists-subdomains-full-clean.txt`.
+
+The cleaned `subdomains-top1million-full.7z` output is combined with all Discovery/DNS `*.txt` wordlists. The combiner emits both original FQDN-like candidates and labels split on dots, then frequency-sorts with GNU `sort` and `uniq`. The final `assets/wordlists/seclists_total.txt` wordlist intentionally starts with one leading empty line. Counts are written to `assets/wordlists/seclists_total_counts.tsv` without a leading empty candidate.
+
+Required tools for this step are `sort` and `uniq` from GNU coreutils, plus `p7zip-full` for `7z` archive extraction.

@@ -40,3 +40,29 @@ def test_opentaal_expected_file_path():
 def test_dutch_dns_expected_file_path():
     assert 'deps/src/dutch-dns-wordlists/subsubdomains_all_by_occurrance.txt' in Path('docs/installation.md').read_text()
     assert 'subsubdomains_all_by_occurrance.txt' in Path('scripts/prepare-dutch-dns-wordlists.sh').read_text()
+
+def test_prepare_seclists_invokes_combiner_with_dns_dir_and_extra_input():
+    text=Path('scripts/prepare-seclists.sh').read_text()
+    assert '--input-dir "$DNS_DIR"' in text
+    assert '--extra-input "$CLEAN"' in text
+    assert 'seclists-subdomains-full-clean.txt' in text
+
+def test_prepare_seclists_does_not_extract_archive_into_dns_dir():
+    text=Path('scripts/prepare-seclists.sh').read_text()
+    assert 'tmp=$(mktemp -d)' in text
+    assert '7z" x -o"$tmp"' in text or '"$EX" x -o"$tmp"' in text
+
+def test_prepare_seclists_creates_scheduler_compat_wordlist(tmp_path):
+    src=tmp_path/'archive.txt'; src.write_text('www\napi.example.nl\n')
+    assets=tmp_path/'assets'
+    subprocess.check_call(['bash','scripts/prepare-seclists.sh','--archive',str(src),'--assets-dir',str(assets)])
+    compat=assets/'wordlists/seclists-full-total.txt'
+    assert compat.exists()
+    assert (assets/'wordlists/seclists_total.txt').read_bytes().startswith(b'\n')
+    assert not (assets/'wordlists/seclists_total_counts.tsv').read_bytes().startswith(b'\n')
+
+def test_prevalence_cleaner_formats(tmp_path):
+    src=tmp_path/'in.txt'; src.write_text('www,123\n123,www\nwww 123\n123 www\napi\n')
+    assets=tmp_path/'assets'
+    subprocess.check_call(['bash','scripts/prepare-seclists.sh','--archive',str(src),'--assets-dir',str(assets)])
+    assert (assets/'wordlists/seclists-subdomains-full-clean.txt').read_text().splitlines()==['www','www','www','www','api']
