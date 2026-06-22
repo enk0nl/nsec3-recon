@@ -50,13 +50,66 @@ sudo apt install -y python3-venv
 
 ## Install
 
+Quick start with virtualenv activation:
+
 ```bash
-scripts/install.sh
+scripts/install.sh --skip-pcfg
+source .venv/bin/activate
+nsec3-recon --help
+nsec3-recon example.nl --dry-run
+nsec3-recon example.nl
 ```
 
-The installer checks `ensurepip` before running `python3 -m venv .venv`. It prints exact apt commands and exits non-zero if venv support is missing. It only runs apt commands when invoked with `--install-system-packages`.
+Alternative without activating the virtualenv:
+
+```bash
+scripts/install.sh --skip-pcfg
+.venv/bin/nsec3-recon --help
+.venv/bin/nsec3-recon example.nl --dry-run
+.venv/bin/nsec3-recon example.nl
+```
+
+The installer checks `ensurepip` before running `python3 -m venv .venv`. It prints exact apt commands and exits non-zero if venv support is missing. It only runs apt commands when invoked with `--install-system-packages`. It installs NSEC3 Recon editable into `.venv`, verifies `.venv/bin/nsec3-recon --help`, calls `scripts/bootstrap.sh`, runs `scripts/check-tools.sh`, and prints next commands.
+
+`--skip-pcfg`, `--skip-seclists`, `--skip-assets`, `--deps-dir`, `--assets-dir`, and `--jobs` are passed through to `scripts/bootstrap.sh`; for example, `scripts/install.sh --skip-pcfg` calls bootstrap with equivalent PCFG skipping behavior.
+
+## Using the virtual environment
+
+`scripts/install.sh` installs into `.venv`. To use `nsec3-recon` directly, activate the virtual environment:
+
+```bash
+source .venv/bin/activate
+```
+
+Without activation, call the entrypoint by path:
+
+```bash
+.venv/bin/nsec3-recon
+```
+
+If you open a new shell, activate `.venv` again unless you use `.venv/bin/nsec3-recon` explicitly.
+
+
+## Dry run
+
+After activating `.venv`:
+
+```bash
+source .venv/bin/activate
+nsec3-recon example.nl --dry-run
+```
+
+Without activation:
+
+```bash
+.venv/bin/nsec3-recon example.nl --dry-run
+```
+
+Dry run creates a workspace, renders scheduler config, prints planned commands, and does not run external network stages.
 
 ## Bootstrap dependencies
+
+`scripts/bootstrap.sh` is a lower-level dependency/bootstrap helper that is normally called by `scripts/install.sh`. It clones or updates dependencies, prepares assets, and may be run manually for advanced workflows. `scripts/check-tools.sh` verifies external tool availability and versions but does not install anything. `scripts/prepare-assets.sh` prepares derived wordlists/assets and may be called by bootstrap.
 
 ```bash
 scripts/bootstrap.sh

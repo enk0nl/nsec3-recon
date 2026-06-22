@@ -91,3 +91,12 @@ def test_seclists_no_compat_symlink_by_default(tmp_path):
     assets=tmp_path/'assets'
     subprocess.check_call(['bash','scripts/prepare-seclists.sh','--archive',str(src),'--assets-dir',str(assets)])
     assert not (assets/'wordlists/seclists-full-total.txt').exists()
+
+def test_install_script_verifies_cli_entrypoint():
+    assert '.venv/bin/nsec3-recon --help' in Path('scripts/install.sh').read_text()
+
+def test_install_script_prints_next_steps():
+    text=Path('scripts/install.sh').read_text()
+    assert 'source .venv/bin/activate' in text
+    assert 'nsec3-recon --help' in text
+    assert '.venv/bin/nsec3-recon' in text

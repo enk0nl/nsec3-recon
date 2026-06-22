@@ -67,3 +67,23 @@ def test_docs_warn_main_and_latest_are_moving_targets():
 def test_docs_do_not_reference_seclists_full_total():
     text='\n'.join(p.read_text() for p in Path('docs').glob('*.md'))
     assert 'seclists-full-total.txt' not in text
+
+def test_readme_quickstart_does_not_call_install_and_bootstrap_sequentially():
+    text=Path('README.md').read_text()
+    assert 'scripts/install.sh\nscripts/bootstrap.sh' not in text
+    assert 'scripts/install.sh --skip-pcfg\nscripts/bootstrap.sh' not in text
+
+def test_install_docs_explain_venv_activation():
+    assert 'source .venv/bin/activate' in Path('docs/installation.md').read_text()
+
+def test_install_docs_show_venv_bin_alternative():
+    assert '.venv/bin/nsec3-recon' in Path('docs/installation.md').read_text()
+
+def test_bootstrap_documented_as_lower_level():
+    text=Path('docs/installation.md').read_text().lower()
+    assert 'lower-level dependency/bootstrap helper' in text
+    assert 'normally called by `scripts/install.sh`' in text
+
+def test_quickstart_dry_run_after_activation():
+    text=Path('README.md').read_text()
+    assert 'source .venv/bin/activate\nnsec3-recon --help\nnsec3-recon example.nl --dry-run' in text or '.venv/bin/nsec3-recon example.nl --dry-run' in text

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 INSTALL_SYSTEM=0; INSTALL_HASHCAT_UPSTREAM=0; INSTALL_GO_TOOLS=0; STRICT_TOOLS=0; FORCE=0
-while [[ $# -gt 0 ]]; do case "$1" in --install-system-packages) INSTALL_SYSTEM=1; shift;; --install-hashcat-upstream) INSTALL_HASHCAT_UPSTREAM=1; shift;; --install-go-tools) INSTALL_GO_TOOLS=1; shift;; --strict-tools) STRICT_TOOLS=1; shift;; --force) FORCE=1; shift;; *) echo "unknown arg $1" >&2; exit 2;; esac; done
+BOOTSTRAP_ARGS=()
+while [[ $# -gt 0 ]]; do case "$1" in --install-system-packages) INSTALL_SYSTEM=1; shift;; --install-hashcat-upstream) INSTALL_HASHCAT_UPSTREAM=1; shift;; --install-go-tools) INSTALL_GO_TOOLS=1; shift;; --strict-tools) STRICT_TOOLS=1; shift;; --force) FORCE=1; shift;; --skip-pcfg|--skip-seclists|--skip-assets|--force-bootstrap) BOOTSTRAP_ARGS+=("${1/--force-bootstrap/--force}"); shift;; --deps-dir|--assets-dir|--jobs) BOOTSTRAP_ARGS+=("$1" "$2"); shift 2;; *) echo "unknown arg $1" >&2; exit 2;; esac; done
 apt_packages=(git python3 python3-pip python3-venv python3-dev python3-setuptools build-essential gcc libssl-dev libssl3 p7zip-full hashcat)
 install_system_packages(){
   echo "Will install Debian/Ubuntu packages: ${apt_packages[*]}"
@@ -63,6 +64,20 @@ ensure_python_venv_available || exit 1
 . .venv/bin/activate
 python3 -m pip install -U pip
 python3 -m pip install -e ".[test]"
-bootstrap_args=()
-scripts/bootstrap.sh "${bootstrap_args[@]}"
+if ! .venv/bin/nsec3-recon --help >/dev/null 2>&1; then
+  echo "[error] .venv/bin/nsec3-recon --help failed after installation" >&2
+  echo "Try: . .venv/bin/activate && python3 -m pip install -e \".[test]\"" >&2
+  exit 1
+fi
+scripts/bootstrap.sh "${BOOTSTRAP_ARGS[@]}"
 if [[ $STRICT_TOOLS -eq 1 ]]; then scripts/check-tools.sh --strict; else scripts/check-tools.sh; fi
+echo "[ok] nsec3-recon installed into .venv"
+echo
+echo "Next steps:"
+echo "  source .venv/bin/activate"
+echo "  nsec3-recon --help"
+echo "  nsec3-recon example.nl --dry-run"
+echo
+echo "Without activating the venv:"
+echo "  .venv/bin/nsec3-recon --help"
+echo "  .venv/bin/nsec3-recon example.nl --dry-run"

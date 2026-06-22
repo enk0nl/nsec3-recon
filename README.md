@@ -2,14 +2,26 @@
 
 NSEC3 Recon orchestrates AXFR checks, DNSSEC probing, NSEC/NSEC3 walking through the external `nsec3map` fork, NSEC3 hashcat target generation, and adaptive cracking through the external `nsec3-candidate-scheduler`.
 
-## Quick start
+## Quick start with virtualenv activation
 
 ```bash
-scripts/install.sh
-scripts/bootstrap.sh --skip-pcfg
+scripts/install.sh --skip-pcfg
+source .venv/bin/activate
+nsec3-recon --help
 nsec3-recon example.nl --dry-run
 nsec3-recon example.nl
 ```
+
+## Quick start without activating the virtualenv
+
+```bash
+scripts/install.sh --skip-pcfg
+.venv/bin/nsec3-recon --help
+.venv/bin/nsec3-recon example.nl --dry-run
+.venv/bin/nsec3-recon example.nl
+```
+
+`scripts/install.sh` is the user-facing setup entrypoint and normally calls `scripts/bootstrap.sh` for dependency cloning and asset preparation. You do not need to run both back-to-back unless you are doing an advanced workflow and intentionally calling the lower-level bootstrap helper yourself.
 
 ## Runtime model
 
