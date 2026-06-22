@@ -42,3 +42,11 @@ git sparse-checkout set --no-cone subsubdomains_all_by_occurrance.txt
 ```
 
 Do not use `--skip-checks` as the preferred solution for single files; use `--no-cone`.
+
+## External tool minimum versions
+
+- `hashcat >= 7.1.2`
+- `amass >= 5.1.1`
+- `subfinder >= 2.14.0`
+
+Run `scripts/check-tools.sh` to verify installed versions. Use `scripts/check-tools.sh --strict` to make missing or outdated Amass/Subfinder errors, and `scripts/check-tools.sh --no-osint` to skip OSINT tool checks.

@@ -32,3 +32,17 @@ def test_sparse_checkout_file_command_for_dutch_dns_wordlists():
 def test_docs_do_not_recommend_skip_checks():
     text='\n'.join(p.read_text() for p in Path('docs').glob('*.md'))
     assert '--skip-checks' not in text or 'do not use `--skip-checks`' in text.lower()
+
+def test_install_docs_include_required_versions():
+    text=Path('docs/installation.md').read_text()
+    assert 'hashcat >= 7.1.2' in text
+    assert 'amass >= 5.1.1' in text
+    assert 'subfinder >= 2.14.0' in text
+
+def test_install_docs_warn_apt_hashcat_may_be_old():
+    text=Path('docs/installation.md').read_text().lower()
+    assert 'apt repositories may be behind' in text and 'older than 7.1.2' in text
+
+def test_install_docs_include_go_124_for_subfinder():
+    text=Path('docs/installation.md').read_text()
+    assert 'Go 1.24 or newer' in text

@@ -117,3 +117,86 @@ assets/models/suffix_pairs.tsv
 assets/models/common_prefixes_top10000.txt
 assets/models/common_suffixes_top10000.txt
 ```
+
+## External tool versions
+
+Required minimum versions:
+
+```text
+hashcat >= 7.1.2
+amass >= 5.1.1
+subfinder >= 2.14.0
+```
+
+Verify versions explicitly:
+
+```bash
+hashcat --version
+amass -version
+/home/vboxuser/go/bin/amass -version
+subfinder -version
+/home/vboxuser/go/bin/subfinder -version
+```
+
+Debian/Ubuntu apt repositories may be behind, especially for hashcat. Do not assume apt hashcat satisfies `hashcat >= 7.1.2`; always verify after installation.
+
+### Hashcat
+
+Apt installation is acceptable only if the version is new enough:
+
+```bash
+sudo apt update
+sudo apt install -y hashcat
+hashcat --version
+```
+
+If this reports a version older than 7.1.2, install hashcat from the upstream release instead.
+
+Manual upstream install flow:
+
+```bash
+mkdir -p deps/bin
+cd deps/bin
+# download hashcat v7.1.2 or newer from https://hashcat.net/hashcat/
+# extract the 7z archive
+# add extracted directory to PATH or set HASHCAT_BIN / --hashcat-bin
+```
+
+The project does not hardcode a fragile hashcat download URL. Use the official hashcat download page and verify the archive before use.
+
+### Amass
+
+Install Amass v5.1.1 or newer from the official GitHub releases. Place the binary at:
+
+```text
+/home/vboxuser/go/bin/amass
+```
+
+or ensure it is in `PATH`. Verify with:
+
+```bash
+amass -version
+/home/vboxuser/go/bin/amass -version
+```
+
+Amass is optional only if the `osint/amass` scheduler arm is disabled. Do not rely on apt for Amass unless the resulting version is verified to be at least 5.1.1.
+
+### Subfinder and Go
+
+Install Subfinder v2.14.0 or newer with Go:
+
+```bash
+go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@v2.14.0
+export PATH="$PATH:$HOME/go/bin"
+subfinder -version
+```
+
+If using `@latest`, check the version afterwards with `subfinder -version`; the required version is `>= 2.14.0`.
+
+Subfinder upstream currently requires Go 1.24 or newer. Check Go with:
+
+```bash
+go version
+```
+
+If Debian/Ubuntu apt provides an older Go version, install Go from the upstream Go distribution or another trusted package source. After installing Go, ensure `$HOME/go/bin` is in `PATH`. If Subfinder is installed at `/home/vboxuser/go/bin/subfinder`, the default scheduler config can use that path directly.

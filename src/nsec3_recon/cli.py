@@ -17,6 +17,7 @@ def build_parser():
     p.add_argument("--nsec3map-source-dir", default="deps/src/nsec3map")
     p.add_argument("--nsec3map-python", default="python3")
     p.add_argument("--scheduler-bin", default="python3 -m nsec3_candidate_scheduler")
+    p.add_argument("--hashcat-bin", default="hashcat")
     p.add_argument("--amass-bin", default="/home/vboxuser/go/bin/amass")
     p.add_argument("--subfinder-bin", default="/home/vboxuser/go/bin/subfinder")
     p.add_argument("--assets-dir", default="assets")
@@ -45,6 +46,7 @@ def main(argv=None):
             nsec3map_source_dir=Path(args.nsec3map_source_dir),
             nsec3map_python=args.nsec3map_python,
             scheduler_bin=args.scheduler_bin,
+            hashcat_bin=args.hashcat_bin,
             amass_bin=args.amass_bin,
             subfinder_bin=args.subfinder_bin,
             assets_dir=Path(args.assets_dir),

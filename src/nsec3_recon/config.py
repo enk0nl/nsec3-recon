@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from pathlib import Path
 import re, shlex
 
@@ -24,11 +24,13 @@ class PipelineConfig:
     nsec3map_source_dir: Path = Path("deps/src/nsec3map")
     nsec3map_python: str = "python3"
     scheduler_bin: str = "python3 -m nsec3_candidate_scheduler"
+    hashcat_bin: str = "hashcat"
     amass_bin: str = "/home/vboxuser/go/bin/amass"
     subfinder_bin: str = "/home/vboxuser/go/bin/subfinder"
     assets_dir: Path = Path("assets")
     dry_run: bool = False
     verbose: bool = False
+    tools: dict = field(default_factory=dict)
 
     def resolved(self):
         self.domain = normalize_domain(self.domain)
@@ -44,6 +46,7 @@ class PipelineConfig:
 
     def to_jsonable(self):
         d = asdict(self)
+        d["tools"] = {"hashcat": {"path": self.hashcat_bin, "min_version": "7.1.2"}, "amass": {"path": self.amass_bin, "min_version": "5.1.1", "required_if_arm_enabled": True}, "subfinder": {"path": self.subfinder_bin, "min_version": "2.14.0", "required_if_arm_enabled": True}}
         for k, v in list(d.items()):
             if isinstance(v, Path):
                 d[k] = str(v)
