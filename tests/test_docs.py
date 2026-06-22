@@ -92,3 +92,28 @@ def test_docs_explain_dnssec_probe_is_advisory():
     text='\n'.join(p.read_text() for p in Path('docs').glob('*.md')).lower()
     assert 'dns probe is advisory' in text
     assert 'nsec3map detect-only is authoritative' in text
+
+def test_docs_explain_nsec3map_psycopg2_dependency():
+    text=(Path('docs/installation.md').read_text()+Path('docs/troubleshooting.md').read_text()).lower()
+    assert 'psycopg2-binary' in text
+    assert 'nsec3map imports `psycopg2`' in text or 'nsec3map imports psycopg2' in text
+    assert 'direct' in text and 'map.py' in text
+
+
+def test_docs_explain_output_path_error():
+    text=Path('docs/troubleshooting.md').read_text().lower()
+    assert 'unable to open output file' in text
+    assert 'absolute output paths' in text
+    assert 'cwd' in text
+
+
+def test_docs_do_not_require_nsec3map_editable_install():
+    text=(Path('docs/installation.md').read_text()+Path('docs/troubleshooting.md').read_text()).lower()
+    assert 'editable nsec3map installation is not required' in text or 'editable installation is not required' in text
+    assert 'direct `map.py` invocation is default' in text or 'direct map.py invocation is default' in text
+
+
+def test_docs_include_libpq_dev_only_as_optional():
+    text=Path('docs/installation.md').read_text().lower()
+    assert 'libpq-dev' in text
+    assert 'optional' in text and 'source psycopg2' in text

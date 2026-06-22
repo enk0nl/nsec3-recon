@@ -75,3 +75,28 @@ cat runs/<run>/reports/summary.json
 ```
 
 `events.jsonl` is authoritative for emitted pipeline events. The DNS probe is advisory only: `probe/dnssec.json` records lightweight DNSKEY/DS evidence and errors, but it does not decide whether the pipeline is allowed to run nsec3map. `nsec3map/detect.json` is the authoritative NSEC/NSEC3 routing result, and nsec3map detect-only is authoritative for NSEC/NSEC3 routing after AXFR is unavailable.
+
+## nsec3map missing psycopg2
+
+NSEC3 Recon uses direct `map.py` invocation by default from `deps/src/nsec3map`; editable installation is not required. The nsec3map fork imports psycopg2 through its database module, even when database output is not used.
+
+If detect-only or enumeration fails with `ModuleNotFoundError: No module named 'psycopg2'`, install the required packages into the same interpreter used for `--nsec3map-python`:
+
+```bash
+source .venv/bin/activate
+python -m pip install dnspython psycopg2-binary
+.venv/bin/python -c "import dns, psycopg2, rich"
+```
+
+`psycopg2-binary` is the default recommended dependency. `libpq-dev` is optional only when building source psycopg2 manually; PostgreSQL server is not required.
+
+## map.py fatal: unable to open output file
+
+The error `map.py: fatal: unable to open output file` can happen when a relative output path is passed while `map.py` runs with a different cwd, such as `deps/src/nsec3map`. The pipeline now creates the nsec3map output directory first and passes absolute output paths to map.py.
+
+For manual runs, either use absolute output paths or run from the directory where the relative path should be resolved:
+
+```bash
+cd deps/src/nsec3map
+../../../.venv/bin/python map.py --output=/absolute/path/to/runs/example.nl/nsec3map/zone.txt example.nl
+```

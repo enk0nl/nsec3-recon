@@ -270,3 +270,48 @@ assets/wordlists/seclists_total_counts.tsv
 ```
 
 `seclists_total.txt` starts with exactly one leading empty line. `seclists_total_counts.tsv` is not written unless `--keep-counts` is passed and does not include a leading empty candidate. `sort` and `uniq` are provided by GNU coreutils; `p7zip-full` provides `7z`/`7za` for the archive extraction.
+
+## nsec3map Python dependencies
+
+NSEC3 Recon invokes the public nsec3map fork directly from `deps/src/nsec3map`; direct `map.py` invocation is default. Editable nsec3map installation is not required by default, and building the nsec3map C extension remains optional.
+
+The nsec3map fork imports `psycopg2` through its database module even when database output is not used. The product virtual environment must therefore include:
+
+```text
+dnspython
+psycopg2-binary
+```
+
+`scripts/install.sh` installs these through the normal project dependency set. `psycopg2-binary` avoids requiring PostgreSQL development headers for the default path. PostgreSQL server is not required.
+
+Manual fix if an alternate interpreter is used:
+
+```bash
+source .venv/bin/activate
+python -m pip install dnspython psycopg2-binary
+```
+
+Verify the project interpreter:
+
+```bash
+.venv/bin/python -c "import dns, psycopg2, rich"
+```
+
+Verify direct nsec3map invocation:
+
+```bash
+.venv/bin/python deps/src/nsec3map/map.py --detect-only example.nl
+# or
+cd deps/src/nsec3map
+../../../.venv/bin/python map.py --detect-only example.nl
+```
+
+If you deliberately use source `psycopg2` instead of `psycopg2-binary`, `libpq-dev` is an optional package for source psycopg2 builds:
+
+```bash
+sudo apt install -y libpq-dev
+```
+
+Do not add `libpq-dev` to the base dependency list for the default `psycopg2-binary` path, and do not install a PostgreSQL server for this pipeline.
+
+Note: nsec3map imports psycopg2 during startup, so `psycopg2-binary` is part of the default runtime dependency set.

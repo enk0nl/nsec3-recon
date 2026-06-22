@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
-import re, shlex
+import re, shlex, sys
 
 DOMAIN_RE = re.compile(r"^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])$")
 
@@ -22,7 +22,7 @@ class PipelineConfig:
     scheduler_config: Path | None = None
     config_template: Path | None = None
     nsec3map_source_dir: Path = Path("deps/src/nsec3map")
-    nsec3map_python: str = "python3"
+    nsec3map_python: str = field(default_factory=lambda: sys.executable)
     scheduler_bin: str = "python3 -m nsec3_candidate_scheduler"
     hashcat_bin: str = "hashcat"
     amass_bin: str = "~/go/bin/amass"
@@ -35,7 +35,7 @@ class PipelineConfig:
     def resolved(self):
         self.domain = normalize_domain(self.domain)
         self.assets_dir = Path(self.assets_dir).resolve()
-        self.nsec3map_source_dir = Path(self.nsec3map_source_dir)
+        self.nsec3map_source_dir = Path(self.nsec3map_source_dir).resolve()
         if self.out_dir is not None:
             self.out_dir = Path(self.out_dir)
         if self.scheduler_config is not None:
@@ -53,8 +53,13 @@ class PipelineConfig:
         return d
 
     def scheduler_command(self, workspace: Path, hash_file: Path, config_file: Path):
+        workspace = Path(workspace).resolve()
+        hash_file = Path(hash_file).resolve()
+        config_file = Path(config_file).resolve()
+        scheduler_dir = (workspace / "scheduler").resolve()
+        scheduler_dir.mkdir(parents=True, exist_ok=True)
         return shlex.split(self.scheduler_bin) + [
             "run", "--hashes", str(hash_file), "--hash-mode", "8300", "--config", str(config_file),
-            "--out-dir", str(workspace / "scheduler"), "--schedule", self.schedule,
+            "--out-dir", str(scheduler_dir), "--schedule", self.schedule,
             "--total-slices", str(self.total_slices), "--slice-seconds", str(self.slice_seconds),
         ]

@@ -100,3 +100,20 @@ def test_install_script_prints_next_steps():
     assert 'source .venv/bin/activate' in text
     assert 'nsec3-recon --help' in text
     assert '.venv/bin/nsec3-recon' in text
+
+def test_pyproject_includes_psycopg2_binary():
+    from pathlib import Path
+    assert 'psycopg2-binary' in Path('pyproject.toml').read_text()
+
+
+def test_check_tools_checks_psycopg2_import():
+    from pathlib import Path
+    text=Path('scripts/check-tools.sh').read_text()
+    assert 'import dns, psycopg2' in text
+    assert 'NSEC3MAP_PYTHON' in text
+
+
+def test_install_verifies_nsec3map_python_imports():
+    from pathlib import Path
+    text=Path('scripts/install.sh').read_text()
+    assert 'import dns' in text and 'import psycopg2' in text and 'import rich' in text

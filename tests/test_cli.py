@@ -12,3 +12,10 @@ def test_cli_accepts_hashcat_bin_override(tmp_path):
     assert main(['example.nl','--dry-run','--no-tui','--out-dir',str(tmp_path/'run'),'--hashcat-bin','/tmp/hashcat']) == 0
     cfg=(tmp_path/'run/config/pipeline_config.json').read_text()
     assert '/tmp/hashcat' in cfg
+
+def test_nsec3map_python_default_is_sys_executable():
+    import sys
+    from nsec3_recon.config import PipelineConfig
+    assert PipelineConfig('example.nl').nsec3map_python == sys.executable
+    from nsec3_recon.cli import build_parser
+    assert build_parser().parse_args(['example.nl']).nsec3map_python == sys.executable

@@ -10,7 +10,7 @@ class Workspace:
     @classmethod
     def create(cls, domain, out_dir=None):
         d=normalize_domain(domain); ts=datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')
-        root=Path(out_dir) if out_dir else Path('runs')/f'{d}-{ts}'
+        root=(Path(out_dir) if out_dir else Path('runs')/f'{d}-{ts}').resolve()
         ws=cls(root,d); ws.root.mkdir(parents=True, exist_ok=True)
         for p in DIRS: (ws.root/p).mkdir(parents=True, exist_ok=True)
         return ws

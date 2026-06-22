@@ -15,7 +15,7 @@ def build_parser():
     p.add_argument("--scheduler-config")
     p.add_argument("--config-template")
     p.add_argument("--nsec3map-source-dir", default="deps/src/nsec3map")
-    p.add_argument("--nsec3map-python", default="python3")
+    p.add_argument("--nsec3map-python", default=sys.executable)
     p.add_argument("--scheduler-bin", default="python3 -m nsec3_candidate_scheduler")
     p.add_argument("--hashcat-bin", default="hashcat")
     p.add_argument("--amass-bin", default="~/go/bin/amass")

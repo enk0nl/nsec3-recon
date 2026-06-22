@@ -45,8 +45,25 @@ PY
 }
 check_tool hashcat 1
 if [[ $NO_OSINT -eq 0 ]]; then check_tool amass "$STRICT"; check_tool subfinder "$STRICT"; fi
+if [[ -n "${NSEC3MAP_PYTHON:-}" ]]; then
+  N3PY="$NSEC3MAP_PYTHON"
+elif [[ -x .venv/bin/python ]]; then
+  N3PY=".venv/bin/python"
+else
+  N3PY="python3"
+fi
+N3PY_RUN="$N3PY"
+if [[ "$N3PY_RUN" != /* && "$N3PY_RUN" == */* ]]; then N3PY_RUN="$(pwd)/${N3PY_RUN#./}"; fi
+if "$N3PY" -c "import dns, psycopg2" >/dev/null 2>&1; then
+  ok "nsec3map python deps: dns psycopg2 using $N3PY"
+else
+  echo "[missing] nsec3map python dependency psycopg2"
+  echo "fix: $N3PY -m pip install psycopg2-binary"
+  missing=1
+fi
 python3 -m nsec3_candidate_scheduler --help >/dev/null 2>&1 && ok "python3 -m nsec3_candidate_scheduler" || miss "python3 -m nsec3_candidate_scheduler"
-[[ -f deps/src/nsec3map/map.py ]] && ok "deps/src/nsec3map/map.py" || miss "deps/src/nsec3map/map.py"
+[[ -f deps/src/nsec3map/map.py ]] && ok "nsec3map source: deps/src/nsec3map/map.py" || miss "deps/src/nsec3map/map.py"
+if [[ -f deps/src/nsec3map/map.py ]]; then (cd deps/src/nsec3map && "$N3PY_RUN" -c "import n3map.map" >/dev/null 2>&1) && ok "nsec3map import: n3map.map" || warn "nsec3map import n3map.map failed; ensure deps/src/nsec3map is cloned and $N3PY has dnspython psycopg2-binary"; fi
 ([[ -f deps/src/nsec3map/hashcatify.py ]] || [[ -f deps/src/nsec3map/n3map/hashcatify.py ]]) && ok "nsec3map hashcatify.py" || miss "nsec3map hashcatify.py"
 [[ -f deps/src/pcfg-subdomain-generator/pcfg_guesser.py ]] && ok "pcfg_guesser.py" || miss "deps/src/pcfg-subdomain-generator/pcfg_guesser.py"
 [[ -e deps/src/pcfg-subdomain-generator/Rules/dutch_subdomains ]] && ok "PCFG Rules/dutch_subdomains" || miss "deps/src/pcfg-subdomain-generator/Rules/dutch_subdomains"

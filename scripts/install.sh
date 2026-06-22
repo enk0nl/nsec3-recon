@@ -64,6 +64,16 @@ ensure_python_venv_available || exit 1
 . .venv/bin/activate
 python3 -m pip install -U pip
 python3 -m pip install -e ".[test]"
+if ! .venv/bin/python - <<'PYIMPORT' >/dev/null 2>&1
+import dns
+import psycopg2
+import rich
+PYIMPORT
+then
+  echo "[error] installed Python environment cannot import dns, psycopg2, and rich" >&2
+  echo "Try: .venv/bin/python -m pip install dnspython psycopg2-binary rich" >&2
+  exit 1
+fi
 if ! .venv/bin/nsec3-recon --help >/dev/null 2>&1; then
   echo "[error] .venv/bin/nsec3-recon --help failed after installation" >&2
   echo "Try: . .venv/bin/activate && python3 -m pip install -e \".[test]\"" >&2

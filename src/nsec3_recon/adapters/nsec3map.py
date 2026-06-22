@@ -9,6 +9,8 @@ def detect_command(source_dir: Path, python: str, domain: str) -> list[str]:
     return [python, "map.py", "--detect-only", domain]
 
 def enumerate_command(source_dir: Path, python: str, domain: str, zone_file: Path) -> list[str]:
+    zone_file = Path(zone_file).resolve()
+    zone_file.parent.mkdir(parents=True, exist_ok=True)
     return [python, "map.py", f"--output={zone_file}", domain]
 
 def parse_detect_output(stdout: str, domain: str) -> str | None:
@@ -44,9 +46,12 @@ def find_hashcatify_script(source_dir: Path) -> Path | None:
     return None
 
 def hashcatify_command(source_dir: Path, python: str, zone_file: Path, hash_file: Path) -> list[str]:
+    zone_file = Path(zone_file).resolve()
+    hash_file = Path(hash_file).resolve()
+    hash_file.parent.mkdir(parents=True, exist_ok=True)
     script = find_hashcatify_script(source_dir)
     if script:
-        return [python, str(script), str(zone_file), str(hash_file)]
+        return [python, str(script.resolve()), str(zone_file), str(hash_file)]
     return [python, "-m", "n3map.hashcatify", str(zone_file), str(hash_file)]
 
 def extract_nsec_names(path, domain):
