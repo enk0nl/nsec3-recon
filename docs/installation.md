@@ -315,3 +315,36 @@ sudo apt install -y libpq-dev
 Do not add `libpq-dev` to the base dependency list for the default `psycopg2-binary` path, and do not install a PostgreSQL server for this pipeline.
 
 Note: nsec3map imports psycopg2 during startup, so `psycopg2-binary` is part of the default runtime dependency set.
+
+## Scheduler model assets
+
+The scheduler repository includes predictive/static-affix model files under:
+
+```text
+deps/src/nsec3-candidate-scheduler/models/
+```
+
+`scripts/prepare-assets.sh` calls `scripts/prepare-models.sh` to copy or symlink those files into:
+
+```text
+assets/models/
+```
+
+Required model assets are:
+
+```text
+assets/models/prefix_pairs.tsv
+assets/models/suffix_pairs.tsv
+assets/models/common_prefixes_top10000.txt
+assets/models/common_suffixes_top10000.txt
+```
+
+Manual repair:
+
+```bash
+scripts/prepare-models.sh
+# or
+scripts/prepare-assets.sh
+```
+
+By default `assets/models/` may contain symlinks into `deps/src/nsec3-candidate-scheduler/models/`; this is expected and avoids duplicating generated model files.

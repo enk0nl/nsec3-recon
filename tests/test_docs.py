@@ -117,3 +117,9 @@ def test_docs_include_libpq_dev_only_as_optional():
     text=Path('docs/installation.md').read_text().lower()
     assert 'libpq-dev' in text
     assert 'optional' in text and 'source psycopg2' in text
+
+def test_docs_explain_model_asset_preparation():
+    text=(Path('docs/installation.md').read_text()+Path('docs/dependencies.md').read_text()+Path('docs/troubleshooting.md').read_text())
+    assert 'deps/src/nsec3-candidate-scheduler/models' in text
+    assert 'assets/models' in text
+    assert 'scripts/prepare-models.sh' in text

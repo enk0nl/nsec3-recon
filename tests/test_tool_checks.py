@@ -26,6 +26,7 @@ def test_check_tools_accepts_hashcat_712(tmp_path):
 
 def test_runtime_preflight_fails_if_osint_amass_enabled_and_missing(monkeypatch, tmp_path):
     from nsec3_recon.stages import scheduler_stage
+    monkeypatch.setattr(scheduler_stage, 'validate_model_assets', lambda rendered: [])
     monkeypatch.setattr(tools, 'check_hashcat', lambda path='hashcat': tools.ToolCheck('hashcat','hashcat','7.1.2',(7,1,2),True))
     monkeypatch.setattr(tools, 'check_amass', lambda path='/x': tools.ToolCheck('amass',None,'5.1.1',None,False))
     ctx=Pipeline(PipelineConfig('example.nl', out_dir=tmp_path/'r')).setup()
@@ -34,6 +35,7 @@ def test_runtime_preflight_fails_if_osint_amass_enabled_and_missing(monkeypatch,
 def test_runtime_preflight_ignores_missing_amass_if_arm_disabled(monkeypatch, tmp_path):
     from nsec3_recon.stages import scheduler_stage
     cfg=tmp_path/'sched.json'
+    monkeypatch.setattr(scheduler_stage, 'validate_model_assets', lambda rendered: [])
     data=json.loads(Path('src/nsec3_recon/templates/scheduler_config.json').read_text().replace('{{ domain }}','example.nl'))
     for arm in data['arms']:
         if arm['name']=='osint/amass': arm['enabled']=False
@@ -46,6 +48,7 @@ def test_runtime_preflight_ignores_missing_amass_if_arm_disabled(monkeypatch, tm
 
 def test_runtime_preflight_fails_if_subfinder_enabled_and_old(monkeypatch, tmp_path):
     from nsec3_recon.stages import scheduler_stage
+    monkeypatch.setattr(scheduler_stage, 'validate_model_assets', lambda rendered: [])
     monkeypatch.setattr(tools, 'check_hashcat', lambda path='hashcat': tools.ToolCheck('hashcat','hashcat','7.1.2',(7,1,2),True))
     monkeypatch.setattr(tools, 'check_amass', lambda path='/x': tools.ToolCheck('amass','amass','5.1.1',(5,1,1),True))
     monkeypatch.setattr(tools, 'check_subfinder', lambda path='/x': tools.ToolCheck('subfinder','subfinder','2.14.0',(2,13,0),False))

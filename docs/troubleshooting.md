@@ -100,3 +100,17 @@ For manual runs, either use absolute output paths or run from the directory wher
 cd deps/src/nsec3map
 ../../../.venv/bin/python map.py --output=/absolute/path/to/runs/example.nl/nsec3map/zone.txt example.nl
 ```
+
+## Missing scheduler model assets
+
+Symptoms include scheduler preflight errors for missing `prefix_pairs.tsv`, `suffix_pairs.tsv`, `common_prefixes_top10000.txt`, or `common_suffixes_top10000.txt`, or an empty `assets/models/` directory after dependency checkout.
+
+Fix:
+
+```bash
+scripts/prepare-models.sh
+# or
+scripts/prepare-assets.sh
+```
+
+The model sources should exist under `deps/src/nsec3-candidate-scheduler/models/`, and prepared assets may be symlinks under `assets/models/`.

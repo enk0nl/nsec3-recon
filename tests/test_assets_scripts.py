@@ -117,3 +117,37 @@ def test_install_verifies_nsec3map_python_imports():
     from pathlib import Path
     text=Path('scripts/install.sh').read_text()
     assert 'import dns' in text and 'import psycopg2' in text and 'import rich' in text
+
+MODEL_FILES = ['prefix_pairs.tsv','suffix_pairs.tsv','common_prefixes_top10000.txt','common_suffixes_top10000.txt']
+
+def _make_model_sources(base):
+    src=base/'deps/src/nsec3-candidate-scheduler/models'
+    src.mkdir(parents=True)
+    for name in MODEL_FILES:
+        (src/name).write_text(name+'\n')
+    return src
+
+
+def test_prepare_models_creates_assets_models(tmp_path):
+    _make_model_sources(tmp_path)
+    subprocess.check_call(['bash', str(Path.cwd()/'scripts/prepare-models.sh'), '--deps-dir', str(tmp_path/'deps/src'), '--assets-dir', str(tmp_path/'assets')], cwd=tmp_path)
+    for name in MODEL_FILES:
+        assert (tmp_path/'assets/models'/name).exists()
+
+
+def test_prepare_models_fails_if_required_source_missing(tmp_path):
+    src=_make_model_sources(tmp_path)
+    (src/'prefix_pairs.tsv').unlink()
+    cp=subprocess.run(['bash', str(Path.cwd()/'scripts/prepare-models.sh'), '--deps-dir', str(tmp_path/'deps/src'), '--assets-dir', str(tmp_path/'assets')], text=True, capture_output=True, cwd=tmp_path)
+    assert cp.returncode != 0
+    assert '[missing]' in cp.stderr and 'prefix_pairs.tsv' in cp.stderr
+
+
+def test_prepare_assets_calls_prepare_models():
+    assert 'scripts/prepare-models.sh' in Path('scripts/prepare-assets.sh').read_text()
+
+
+def test_bootstrap_prepares_models_after_scheduler_clone():
+    text=Path('scripts/bootstrap.sh').read_text()
+    assert 'nsec3-candidate-scheduler' in text
+    assert 'scripts/prepare-assets.sh' in text

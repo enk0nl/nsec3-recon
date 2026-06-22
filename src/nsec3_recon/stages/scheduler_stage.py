@@ -2,6 +2,29 @@ from ..adapters.scheduler import render_scheduler_config
 from ..adapters.subprocess_runner import SubprocessRunner
 from ..adapters.tools import validate_scheduler_tools
 from ..pipeline import PipelineError
+from pathlib import Path
+
+MODEL_REQUIRED_ARMS = {
+    "feedback/predictive-prefix": ("model",),
+    "feedback/predictive-suffix": ("model",),
+    "feedback/static-affix-top5000": ("prefixes", "suffixes"),
+}
+
+
+def validate_model_assets(rendered):
+    errors = []
+    for arm in rendered.get("arms", []):
+        if arm.get("enabled") is False:
+            continue
+        for key in MODEL_REQUIRED_ARMS.get(arm.get("name"), ()):
+            path = arm.get(key)
+            if path and not Path(path).exists():
+                errors.append(
+                    "Missing scheduler model asset: " + str(path) +
+                    "\n\nFix:\nscripts/prepare-models.sh\n\nor:\nscripts/prepare-assets.sh"
+                )
+    return errors
+
 
 
 def run(ctx):
@@ -15,6 +38,12 @@ def run(ctx):
         ctx.config.amass_bin,
         ctx.config.subfinder_bin,
     )
+    model_errors = validate_model_assets(rendered)
+    if model_errors:
+        message = "; ".join(model_errors)
+        ctx.events.emit("scheduler", "model_assets_missing", message, "error", {"errors": model_errors})
+        raise PipelineError("scheduler", message)
+    ctx.events.emit("scheduler", "model_assets_ok", "scheduler model assets available")
     tool_errors = validate_scheduler_tools(rendered, ctx.config.hashcat_bin, ctx.config.amass_bin, ctx.config.subfinder_bin)
     if tool_errors:
         message = "; ".join(tool_errors)

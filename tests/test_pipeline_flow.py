@@ -123,3 +123,11 @@ def test_summary_separates_dnssec_probe_from_nsec3map_detection(monkeypatch,tmp_
     monkeypatch.setattr(nsec3map_stage,'detect',lambda ctx: ctx.state.update(nsec3map_detect={'status':'not_dnssec','zone_type':'none'}) or ctx.state['nsec3map_detect'])
     data=json.loads((pipe(tmp_path).run().workspace.root/'reports/summary.json').read_text())
     assert 'dnssec_probe_enabled' in data and 'nsec3map_detected_zone_type' in data
+
+def test_no_normal_output_for_low_level_success_events(capsys):
+    from nsec3_recon.events import PipelineEvent
+    from nsec3_recon.ui.console import ConsoleEventPrinter
+    printer=ConsoleEventPrinter()
+    for event in ('python_deps_ok','dependency_check_ok','tool_version_ok','model_assets_ok'):
+        printer.handle_event(PipelineEvent('now','stage','info',event,'ok',{}))
+    assert capsys.readouterr().out == ''

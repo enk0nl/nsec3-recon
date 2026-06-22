@@ -58,3 +58,18 @@ SecLists is sparse-checked out with only `Discovery/DNS`. `scripts/prepare-secli
 The cleaned `subdomains-top1million-full.7z` output is combined with all Discovery/DNS `*.txt` wordlists. The combiner emits both original FQDN-like candidates and labels split on dots, then frequency-sorts with GNU `sort` and `uniq`. The final `assets/wordlists/seclists_total.txt` wordlist intentionally starts with one leading empty line. Counts are not retained by default; pass `--keep-counts` to write `assets/wordlists/seclists_total_counts.tsv` for debugging.
 
 Required tools for this step are `sort` and `uniq` from GNU coreutils, plus `p7zip-full` for `7z` archive extraction.
+
+## Scheduler model assets
+
+Model assets are prepared from `deps/src/nsec3-candidate-scheduler/models/` into `assets/models/` by `scripts/prepare-models.sh`, which is called by `scripts/prepare-assets.sh`.
+
+Required prepared files:
+
+```text
+assets/models/prefix_pairs.tsv
+assets/models/suffix_pairs.tsv
+assets/models/common_prefixes_top10000.txt
+assets/models/common_suffixes_top10000.txt
+```
+
+The prepared files may be symlinks back to `deps/src/nsec3-candidate-scheduler/models/`. If `assets/models/` is empty, run `scripts/prepare-models.sh` or `scripts/prepare-assets.sh`.
