@@ -1,0 +1,19 @@
+{
+"random_seed": 1337,
+"alpha": 0.15,
+"epsilon": 0.15,
+"arms": [
+{"name":"dict/seclists","type":"dictionary","source":"seclists","count_candidates_at_startup":true,"wordlist":"assets/wordlists/seclists_total.txt"},
+{"name":"dict/rfc1035_pcfg","type":"dictionary","source":"pcfg","candidate_count":100000000,"count_candidates_at_startup":false,"wordlist":"assets/wordlists/rfc1035_pcfg_top100000000.txt"},
+{"name":"dict/nsec_data","type":"dictionary","source":"dns-zone-data","count_candidates_at_startup":true,"wordlist":"assets/wordlists/subsubdomains_all_by_occurrance.txt"},
+{"name":"dict/opentaal_dutch","type":"dictionary","source":"opentaal","count_candidates_at_startup":true,"wordlist":"assets/wordlists/opentaal-wordlist.txt"},
+{"name":"brute/alnum-hyphen-len2-7","type":"brute_force","custom_charset_1":"abcdefghijklmnopqrstuvwxyz0123456789-","masks":["?1?1","?1?1?1","?1?1?1?1","?1?1?1?1?1","?1?1?1?1?1?1","?1?1?1?1?1?1?1"]},
+{"name":"feedback/predictive-prefix","type":"predictive_prefix","enabled":true,"model":"assets/models/prefix_pairs.tsv","base_mode":"full","prediction_source":"leftmost","max_predictions":10000,"min_sim":0.7,"tau":2,"gamma":0,"score_floor":-5,"k_neighbors":30,"top_predictions_per_neighbor":100,"min_queue_size":500,"force_every_slices":10,"min_slices_between_runs":5,"generated_candidates_backend":"none"},
+{"name":"feedback/predictive-suffix","type":"predictive_suffix","enabled":true,"model":"assets/models/suffix_pairs.tsv","base_mode":"full","prediction_source":"full","max_predictions":10000,"min_sim":0.7,"tau":2,"gamma":0,"score_floor":-5,"k_neighbors":30,"top_predictions_per_neighbor":100,"min_queue_size":500,"force_every_slices":10,"min_slices_between_runs":5,"generated_candidates_backend":"none"},
+{"name":"feedback/permutation","type":"permutation","enabled":true,"numeric":{"enabled":true,"min_width":1,"max_width":5,"generate_full_range":true,"generate_width_variants":true,"generate_local_radius":true,"allow_wider_width_variants":true,"local_radius":50,"allow_large_numeric_ranges":true},"alpha":{"enabled":true,"charset":"abcdefghijklmnopqrstuvwxyz","min_width":1,"max_width":3,"generate_full_range":true,"generate_width_variants":true,"allow_wider_width_variants":false,"require_numeric_context":true},"min_slices_between_runs":5,"min_queue_size":500,"force_every_slices":10,"generated_candidates_backend":"sqlite"},
+{"name":"feedback/static-affix-top5000","type":"static_affix_feedback","enabled":true,"prefixes":"assets/models/common_prefixes_top10000.txt","suffixes":"assets/models/common_suffixes_top10000.txt","top_prefixes":5000,"top_suffixes":5000,"generate_prefixes":true,"generate_suffixes":true,"base_mode":"full","min_slices_between_runs":5,"min_queue_size":500,"force_every_slices":10,"generated_candidates_backend":"none"},
+{"name":"feedback/parent-domain","type":"parent_domain_feedback","enabled":true,"min_parent_labels":1,"max_parents_per_discovery":null,"include_single_label_parent":true,"min_slices_between_runs":5,"min_queue_size":100,"force_every_slices":10,"generated_candidates_backend":"text"},
+{"name":"osint/subfinder","type":"subfinder_osint","enabled":true,"subfinder_binary":"{{ subfinder_binary }}","domain":"{{ domain }}","start_on_run_start":true,"poll_interval_seconds":5,"run_immediately_when_ready":true,"include_single_label":true,"include_multi_label":true,"max_candidates":null,"dedupe":true,"min_slices_between_runs":0,"keep_running_on_exit":false},
+{"name":"osint/amass","type":"amass_osint","enabled":true,"amass_binary":"{{ amass_binary }}","domains":"{{ domain }}","start_on_run_start":true,"poll_interval_seconds":5,"run_immediately_when_ready":true,"include_single_label":true,"include_multi_label":true,"max_candidates":null,"dedupe":true,"min_slices_between_runs":0,"require_min_version":true,"keep_running_on_exit":false,"hashcat":{"optimized_kernels":true}}
+]
+}

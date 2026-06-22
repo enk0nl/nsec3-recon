@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nsec3-recon"
+version = "0.1.0"
+description = "End-to-end DNS/NSEC3 reconnaissance orchestrator"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["dnspython", "rich", "psycopg2-binary"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.scripts]
+nsec3-recon = "nsec3_recon.cli:main"
+
+[tool.setuptools.package-data]
+nsec3_recon = ["templates/*.json"]
