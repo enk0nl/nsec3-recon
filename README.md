@@ -44,3 +44,5 @@ Required Python dependencies are `dnspython` and `rich`. Runtime tools include `
 `nsec3-recon` supports `--dashboard auto|rich|plain|off`. The default `auto` uses the Rich live dashboard in interactive terminals when Rich is available and falls back to plain one-line console events for non-TTY output. Use `--dashboard rich` to force the terminal dashboard, `--dashboard plain` for line-based event output, and `--dashboard off` to suppress live UI output except the final CLI summary. `events.jsonl` is always written. During scheduler execution the Rich dashboard shows pipeline stages, last completed and previous completed scheduler slices, arm statistics, and recovered candidates tailed from the scheduler potfile when available.
 
 Scheduler slice lines are emitted after completion, so the dashboard labels those scheduler panels as `Last completed slice` and `Previous completed slice`.
+
+Use `--dashboard-refresh-rate FLOAT` to tune the Rich dashboard redraw rate; the default is `2.0` refreshes per second to reduce terminal flicker. Values must be greater than zero and are capped at 10.

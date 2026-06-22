@@ -50,25 +50,28 @@ def _build_arm_panel(state):
         arms.add_row(arm_name, str(a.run_count), str(a.total_new), str(a.last_new), _fmt_float(a.avg_reward), _fmt_float(a.last_reward), _fmt_runtime(a.avg_runtime), str(a.last_seen_slice or '-'))
     if not sorted_arms:
         arms.add_row('waiting for scheduler slices', '', '', '', '', '', '', '')
+    visible_count = max(1, min(len(sorted_arms), ARM_ROW_LIMIT))
+    for _ in range(max(0, ARM_ROW_LIMIT - visible_count)):
+        arms.add_row('', '', '', '', '', '', '', '')
     hidden=max(0, len(sorted_arms)-ARM_ROW_LIMIT)
     footer = f"+{hidden} more arms" if hidden else "sorted by active, new discoveries, reward"
     return Panel(arms, title='Arm statistics', subtitle=footer, border_style='green')
 
 def _build_recovered_panel(state):
     from rich.panel import Panel
-    from rich.table import Table
-    rec = Table.grid(expand=True)
-    rec.add_column('Time', width=8, no_wrap=True, style='cyan')
-    rec.add_column('Candidate', overflow='ellipsis', ratio=1, style='bold white')
+    from rich.text import Text
     rows=list(state.recovered_candidates)[-RECOVERED_ROW_LIMIT:]
+    lines=[]
     if rows:
         for item in rows:
-            rec.add_row(item.get('timestamp','--:--:--'), item.get('candidate',''))
+            lines.append(Text.assemble((item.get('timestamp','--:--:--'), 'cyan'), ('  ', 'cyan'), (item.get('candidate',''), 'bold white')))
     else:
         msg='potfile not detected yet' if not state.current_potfile_path else 'waiting for recovered candidates…'
-        rec.add_row('', msg)
+        lines.append(Text(msg, style='dim'))
+    while len(lines) < RECOVERED_ROW_LIMIT:
+        lines.append(Text(''))
     source = f"source: {state.current_potfile_path.split('/')[-1]}" if state.current_potfile_path else 'potfile not detected yet'
-    return Panel(rec, title='Recovered candidates', subtitle=f"total={state.recovered_candidate_count}  {source}", border_style='bright_yellow')
+    return Panel(Text('\n').join(lines), title='Recovered candidates', subtitle=f"total={state.recovered_candidate_count}  {source}", border_style='bright_yellow')
 
 def _build_activity_panel(state):
     from rich.panel import Panel
@@ -77,7 +80,11 @@ def _build_activity_panel(state):
     style_by_level={'warning':'yellow','error':'red','info':'white','debug':'dim'}
     for a in list(state.recent_activity)[-ACTIVITY_ROW_LIMIT:]:
         lines.append(Text(str(a['message']), style=style_by_level.get(a.get('level'), 'white')))
-    body=Text('\n').join(lines) if lines else Text('no recent activity', style='dim')
+    if not lines:
+        lines.append(Text('no recent activity', style='dim'))
+    while len(lines) < ACTIVITY_ROW_LIMIT:
+        lines.append(Text(''))
+    body=Text('\n').join(lines)
     return Panel(body, title='Recent activity', border_style='blue')
 
 def build_dashboard(state):

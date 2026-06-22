@@ -16,6 +16,7 @@ class PipelineConfig:
     domain: str
     out_dir: Path | None = None
     dashboard: str = "auto"
+    dashboard_refresh_rate: float = 2.0
     total_slices: int = 150
     slice_seconds: int = 15
     schedule: str = "adaptive"
@@ -36,6 +37,10 @@ class PipelineConfig:
         self.domain = normalize_domain(self.domain)
         if self.dashboard not in {"auto", "rich", "plain", "off"}:
             raise ValueError(f"invalid dashboard mode: {self.dashboard}")
+        self.dashboard_refresh_rate = float(self.dashboard_refresh_rate)
+        if self.dashboard_refresh_rate <= 0:
+            raise ValueError("dashboard refresh rate must be > 0")
+        self.dashboard_refresh_rate = min(self.dashboard_refresh_rate, 10.0)
         self.assets_dir = Path(self.assets_dir).resolve()
         self.nsec3map_source_dir = Path(self.nsec3map_source_dir).resolve()
         if self.out_dir is not None:

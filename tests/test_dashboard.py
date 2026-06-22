@@ -119,13 +119,13 @@ def test_live_settings_reduce_flicker(monkeypatch):
     class FakeLive:
         def __init__(self, renderable, **kwargs): calls.update(kwargs)
         def start(self): pass
-        def update(self, renderable): pass
+        def update(self, *args, **kwargs): pass
         def stop(self): pass
     live_mod.Live=FakeLive
     monkeypatch.setitem(sys.modules, 'rich', rich_mod); monkeypatch.setitem(sys.modules, 'rich.live', live_mod)
     monkeypatch.setattr(RichDashboard, 'render', lambda self: 'render')
-    d=RichDashboard(refresh_per_second=20); d.start(); d.stop()
-    assert calls['transient'] is False and calls['screen'] is False and calls['refresh_per_second'] <= 8
+    d=RichDashboard(refresh_per_second=2); d.start(); d.stop()
+    assert calls['transient'] is False and calls['screen'] is False and calls['refresh_per_second'] <= 2 and calls['auto_refresh'] is False
 
 def test_final_summary_prints_recovered_candidates(monkeypatch, capsys):
     from nsec3_recon import cli
@@ -183,3 +183,53 @@ def test_recovered_candidates_panel_prominent():
     s=DashboardState('example.nl','/tmp/ws')
     out=_render_text(s)
     assert 'Recovered candidates' in out and 'total=0' in out
+
+def test_recovered_candidate_timestamp_spacing():
+    s=DashboardState('example.nl','/tmp/ws')
+    s.recovered_candidates.append({'timestamp':'21:07:22','candidate':'www','first_seen_at':0})
+    s.recovered_candidate_count=1
+    out=_render_text(s)
+    assert '21:07:22  www' in out
+    assert '21:07:22www' not in out
+
+def test_dashboard_refresh_rate_default_is_low():
+    assert PipelineConfig('example.nl').dashboard_refresh_rate <= 2.0
+    assert RichDashboard().refresh_per_second <= 2.0
+
+def test_dashboard_refresh_rate_cli_option():
+    from nsec3_recon.cli import build_parser
+    args=build_parser().parse_args(['example.nl','--dashboard-refresh-rate','1'])
+    assert args.dashboard_refresh_rate == 1.0
+
+def test_dashboard_refresh_rate_clamped_or_validated():
+    import pytest
+    with pytest.raises(ValueError):
+        PipelineConfig('example.nl', dashboard_refresh_rate=0).resolved()
+    assert PipelineConfig('example.nl', dashboard_refresh_rate=999).resolved().dashboard_refresh_rate == 10.0
+
+def test_rich_dashboard_does_not_refresh_on_every_event():
+    class FakeLive:
+        def __init__(self): self.calls=0
+        def update(self, *a, **k): self.calls += 1
+    d=RichDashboard('example.nl')
+    d._live=FakeLive()
+    for i in range(5):
+        d.handle_event(PipelineEvent('now','scheduler','info','stdout',f'[1/2] adaptive arm new={i}',{}))
+    assert d._live.calls == 0
+    assert d._dirty is True
+
+def test_live_constructed_with_non_transient_non_screen(monkeypatch):
+    import sys, types
+    calls={}
+    rich_mod=types.ModuleType('rich'); live_mod=types.ModuleType('rich.live')
+    class FakeLive:
+        def __init__(self, renderable, **kwargs): calls.update(kwargs)
+        def start(self): pass
+        def update(self, *args, **kwargs): pass
+        def stop(self): pass
+    live_mod.Live=FakeLive
+    monkeypatch.setitem(sys.modules, 'rich', rich_mod); monkeypatch.setitem(sys.modules, 'rich.live', live_mod)
+    monkeypatch.setattr(RichDashboard, 'render', lambda self: 'render')
+    d=RichDashboard(refresh_per_second=2); d.start(); d.stop()
+    assert calls['transient'] is False and calls['screen'] is False and calls['refresh_per_second'] == 2
+    assert calls['auto_refresh'] is False

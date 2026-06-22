@@ -9,6 +9,7 @@ def build_parser():
     p.add_argument("domain", nargs="?")
     p.add_argument("--out-dir")
     p.add_argument("--dashboard", choices=("auto", "rich", "plain", "off"), default="auto", help="live UI mode (default: auto)")
+    p.add_argument("--dashboard-refresh-rate", type=float, default=2.0, help="Rich dashboard refreshes per second (default: 2.0)")
     p.add_argument("--total-slices", type=int, default=150)
     p.add_argument("--slice-seconds", type=int, default=15)
     p.add_argument("--schedule", default="adaptive")
@@ -38,6 +39,7 @@ def main(argv=None):
             domain=args.domain,
             out_dir=Path(args.out_dir) if args.out_dir else None,
             dashboard=args.dashboard,
+            dashboard_refresh_rate=args.dashboard_refresh_rate,
             total_slices=args.total_slices,
             slice_seconds=args.slice_seconds,
             schedule=args.schedule,
