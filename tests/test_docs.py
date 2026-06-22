@@ -87,3 +87,8 @@ def test_bootstrap_documented_as_lower_level():
 def test_quickstart_dry_run_after_activation():
     text=Path('README.md').read_text()
     assert 'source .venv/bin/activate\nnsec3-recon --help\nnsec3-recon example.nl --dry-run' in text or '.venv/bin/nsec3-recon example.nl --dry-run' in text
+
+def test_docs_explain_dnssec_probe_is_advisory():
+    text='\n'.join(p.read_text() for p in Path('docs').glob('*.md')).lower()
+    assert 'dns probe is advisory' in text
+    assert 'nsec3map detect-only is authoritative' in text

@@ -13,7 +13,8 @@ def test_summary_json_written_for_nsec3_scheduler(monkeypatch,tmp_path):
     from nsec3_recon.stages import dns_probe, axfr, nsec3map_stage, hashcatify, scheduler_stage
     monkeypatch.setattr(dns_probe,'run',lambda ctx: ctx.state.update(dnssec={'dnssec_enabled':True}, nameservers=[]) or ctx.state['dnssec'])
     monkeypatch.setattr(axfr,'run',lambda ctx: ctx.state.update(axfr={'supported':False}) or ctx.state['axfr'])
-    monkeypatch.setattr(nsec3map_stage,'run',lambda ctx: ctx.state.update(nsec3map={'zone_type':'nsec3','zone_file':'nsec3map/zone.txt'}) or ctx.state['nsec3map'])
+    monkeypatch.setattr(nsec3map_stage,'detect',lambda ctx: ctx.state.update(nsec3map_detect={'status':'success','zone_type':'nsec3'}) or ctx.state['nsec3map_detect'])
+    monkeypatch.setattr(nsec3map_stage,'enumerate',lambda ctx, detected_zone_type=None: ctx.state.update(nsec3map={'zone_type':detected_zone_type,'zone_file':'nsec3map/zone.txt'}) or ctx.state['nsec3map'])
     monkeypatch.setattr(hashcatify,'run',lambda ctx: ctx.state.update(hashcatify={'hash_count':1,'hash_file':'nsec3map/h'}) or ctx.state['hashcatify'])
     monkeypatch.setattr(scheduler_stage,'run',lambda ctx: None)
     ctx=Pipeline(PipelineConfig('example.nl', out_dir=tmp_path/'r')).run()

@@ -54,7 +54,13 @@ def main(argv=None):
             verbose=args.verbose,
         )
         ctx = Pipeline(cfg).run()
-        print(f"Workspace: {ctx.workspace.root}")
+        summary = ctx.state.get('summary', {})
+        completed = summary.get('completed_via')
+        if completed:
+            print(f"Completed via: {completed}")
+            if completed == 'not_dnssec':
+                print('Reason: nsec3map detect-only did not report NSEC or NSEC3')
+        print(f"Summary: {ctx.workspace.root/'reports/summary.json'}")
         return 0
     except (ValueError, PipelineError) as e:
         print(f"error: {e}", file=sys.stderr)

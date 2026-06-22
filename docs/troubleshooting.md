@@ -62,3 +62,16 @@ sudo apt install hashcat
 ```
 
 Alternatively install a local hashcat package appropriate for the target GPU/CPU environment.
+
+## Pipeline produced little or no output
+
+The line-based console output should show each stage as it runs. If a terminal session still appears quiet, inspect the workspace artifacts directly:
+
+```bash
+jq -r '[.ts,.stage,.event,.message] | @tsv' runs/<run>/events.jsonl
+cat runs/<run>/probe/dnssec.json
+cat runs/<run>/nsec3map/detect.json
+cat runs/<run>/reports/summary.json
+```
+
+`events.jsonl` is authoritative for emitted pipeline events. The DNS probe is advisory only: `probe/dnssec.json` records lightweight DNSKEY/DS evidence and errors, but it does not decide whether the pipeline is allowed to run nsec3map. `nsec3map/detect.json` is the authoritative NSEC/NSEC3 routing result, and nsec3map detect-only is authoritative for NSEC/NSEC3 routing after AXFR is unavailable.

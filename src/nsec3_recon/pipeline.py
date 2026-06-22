@@ -6,6 +6,7 @@ from .config import PipelineConfig
 from .workspace import Workspace
 from .events import EventSink
 from .report import write_summary
+from .ui.console import ConsoleEventPrinter
 
 class PipelineError(Exception):
     def __init__(self, stage, message): super().__init__(message); self.stage=stage; self.message=message
@@ -17,8 +18,13 @@ class PipelineContext:
 class Pipeline:
     def __init__(self, config:PipelineConfig): self.config=config.resolved(); self.ctx=None
     def setup(self):
-        ws=Workspace.create(self.config.domain, self.config.out_dir); ev=EventSink(ws.root/'events.jsonl')
-        self.ctx=PipelineContext(self.config,ws,ev); return self.ctx
+        ws=Workspace.create(self.config.domain, self.config.out_dir)
+        print(f"Workspace: {ws.root}", flush=True)
+        printer = ConsoleEventPrinter(verbose=self.config.verbose)
+        ev=EventSink(ws.root/'events.jsonl', listeners=[printer.handle_event])
+        self.ctx=PipelineContext(self.config,ws,ev)
+        ev.emit('preflight','workspace_created','workspace created', data={'workspace': str(ws.root)})
+        return self.ctx
     def run(self):
         from .stages import preflight,dns_probe,axfr,nsec3map_stage,hashcatify,scheduler_stage
         from .adapters.scheduler import render_scheduler_config
@@ -36,15 +42,25 @@ class Pipeline:
                 print(' '.join(ctx.config.scheduler_command(ctx.workspace.root,hf,sc)))
                 write_summary(ctx,'dry_run'); return ctx
             dns_probe.run(ctx); ax=axfr.run(ctx)
-            if ax.get('supported'): write_summary(ctx,'axfr'); return ctx
-            if not ctx.state.get('dnssec',{}).get('dnssec_enabled'):
-                ctx.events.emit('nsec3map','skipped','DNSSEC not enabled'); write_summary(ctx,'not_dnssec'); return ctx
-            n3=nsec3map_stage.run(ctx)
-            if n3.get('zone_type')=='nsec':
+            if ax.get('supported'):
+                write_summary(ctx,'axfr'); return ctx
+
+            detect = nsec3map_stage.detect(ctx)
+            if detect.get('status') == 'not_dnssec' or detect.get('zone_type') == 'none':
+                write_summary(ctx,'not_dnssec'); return ctx
+
+            detected_zone_type = detect.get('zone_type') if detect.get('zone_type') in {'nsec','nsec3'} else None
+            n3 = nsec3map_stage.enumerate(ctx, detected_zone_type=detected_zone_type)
+            zone_type = detected_zone_type or n3.get('zone_type')
+            ctx.state.setdefault('nsec3map', n3)['zone_type'] = zone_type
+
+            if zone_type=='nsec':
                 names=extract_nsec_names(ctx.workspace.root/'nsec3map/zone.txt', ctx.config.domain)
                 (ctx.workspace.root/'reports/discovered_names.txt').write_text('\n'.join(names)+'\n')
+                ctx.events.emit('nsec3map','nsec_names_extracted', f'extracted {len(names)} NSEC names', data={'zone_type': 'nsec'})
                 write_summary(ctx,'nsec'); return ctx
-            if n3.get('zone_type')!='nsec3': write_summary(ctx,'unknown_nsec'); return ctx
+            if zone_type!='nsec3':
+                write_summary(ctx,'unknown_nsec'); return ctx
             hashcatify.run(ctx); scheduler_stage.run(ctx); write_summary(ctx,'nsec3_scheduler'); return ctx
         except PipelineError as e:
             ctx.events.emit(e.stage,'failed',e.message,'error'); write_summary(ctx,'failed',e.stage,e.message); raise

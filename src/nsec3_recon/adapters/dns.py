@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 def _dns():
-    import dns.resolver, dns.query, dns.zone
+    import dns.resolver, dns.query, dns.zone, dns.flags, dns.exception
     return dns
 
 def authoritative_nameservers(domain):
@@ -15,14 +15,49 @@ def authoritative_nameservers(domain):
         out.append({'name':name,'addresses':addrs})
     return out
 
+def _query_evidence(resolver, dns, domain, rdtype):
+    result = {'present': False, 'status': 'absent', 'error': None}
+    try:
+        ans = resolver.resolve(domain, rdtype, raise_on_no_answer=False)
+        if getattr(ans, 'rrset', None):
+            result.update({'present': True, 'status': 'present'})
+        else:
+            result.update({'present': False, 'status': 'absent'})
+    except getattr(dns.exception, 'Timeout') as e:
+        result.update({'status': 'error', 'error': f'timeout: {e}'})
+    except getattr(dns.resolver, 'NoAnswer') as e:
+        result.update({'status': 'absent', 'error': str(e) or None})
+    except getattr(dns.resolver, 'NoNameservers') as e:
+        result.update({'status': 'error', 'error': f'nameserver failure: {e}'})
+    except getattr(dns.resolver, 'NXDOMAIN') as e:
+        result.update({'status': 'error', 'error': f'NXDOMAIN: {e}'})
+    except Exception as e:
+        result.update({'status': 'error', 'error': f'{type(e).__name__}: {e}'})
+    return result
+
 def dnssec_evidence(domain):
-    dns=_dns(); ev={'dnskey_present':False,'ds_present':False}
-    for typ,key in [('DNSKEY','dnskey_present'),('DS','ds_present')]:
-        try:
-            ans=dns.resolver.resolve(domain,typ,raise_on_no_answer=False)
-            ev[key]=bool(ans.rrset)
-        except Exception: ev[key]=False
-    return {'domain':domain,'dnssec_enabled':ev['dnskey_present'] or ev['ds_present'],'evidence':ev}
+    dns=_dns()
+    resolver=dns.resolver.Resolver()
+    try:
+        resolver.use_edns(edns=0, ednsflags=dns.flags.DO)
+    except Exception:
+        pass
+    dnskey = _query_evidence(resolver, dns, domain, 'DNSKEY')
+    ds = _query_evidence(resolver, dns, domain, 'DS')
+    enabled = dnskey['present'] or ds['present']
+    if enabled:
+        status = 'enabled'
+    elif dnskey['status'] == 'error' or ds['status'] == 'error':
+        status = 'unknown'
+    else:
+        status = 'not_detected'
+    return {
+        'domain': domain,
+        'probe_dnssec_enabled': enabled,
+        'probe_status': status,
+        'dnssec_enabled': enabled,
+        'evidence': {'dnskey': dnskey, 'ds': ds},
+    }
 
 def try_axfr(domain, ns):
     dns=_dns(); target=(ns.get('addresses') or [ns['name']])[0]

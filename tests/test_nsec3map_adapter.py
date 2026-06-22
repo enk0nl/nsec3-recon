@@ -22,3 +22,6 @@ def test_hashcatify_uses_direct_source_script_when_available(tmp_path):
     src=tmp_path/'nsec3map'; src.mkdir(); (src/'hashcatify.py').write_text('')
     cmd=hashcatify_command(src,'python3',tmp_path/'z',tmp_path/'h')
     assert cmd[:2]==['python3',str(src/'hashcatify.py')]
+
+def test_parse_detect_output_optional_trailing_dot():
+    assert parse_detect_output('example.nl: nsec3\n','example.nl')=='nsec3'

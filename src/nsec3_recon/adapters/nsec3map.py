@@ -12,9 +12,20 @@ def enumerate_command(source_dir: Path, python: str, domain: str, zone_file: Pat
     return [python, "map.py", f"--output={zone_file}", domain]
 
 def parse_detect_output(stdout: str, domain: str) -> str | None:
-    d = re.escape(domain.rstrip(".").lower()) + r"\.?:\s*(nsec3|nsec)\b"
-    m = re.search(d, stdout.lower())
-    return m.group(1) if m else None
+    wanted = domain.rstrip(".").lower()
+    for line in stdout.splitlines():
+        m = re.match(r"^\s*(?P<domain>[^:\s]+)\s*:\s*(?P<mode>nsec3|nsec)\b", line.lower())
+        if m and m.group("domain").rstrip(".") == wanted:
+            return m.group("mode")
+    return None
+
+def detect_indicates_not_dnssec(text: str) -> bool:
+    lowered = text.lower()
+    markers = (
+        "no dnssec", "not dnssec", "not signed", "unsigned",
+        "does not use dnssec", "no nsec", "no nsec3",
+    )
+    return any(marker in lowered for marker in markers)
 
 def classify_zone_file(path):
     text = Path(path).read_text(encoding="utf-8", errors="ignore").upper() if Path(path).exists() else ""

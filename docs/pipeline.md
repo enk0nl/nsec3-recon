@@ -22,3 +22,7 @@ Required Python dependencies are `dnspython` and `rich`. Runtime tools include `
 ## Pipeline
 
 The default path is AXFR, DNSSEC probe, nsec3map, NSEC short-circuit, or NSEC3 hashcatify and scheduler. `--dry-run` creates the workspace and rendered scheduler config and prints planned commands without network or external tool execution.
+
+## DNSSEC routing authority
+
+The DNS probe is advisory and records DNSKEY/DS evidence for troubleshooting. It is intentionally not terminal truth. After AXFR is unavailable, `nsec3map` detect-only is authoritative for NSEC/NSEC3 routing, so a false-negative DNS probe does not prevent NSEC or NSEC3 enumeration.

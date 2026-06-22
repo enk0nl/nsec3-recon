@@ -7,5 +7,5 @@ def run(ctx):
     ctx.state['nameservers']=ns; ctx.state['dnssec']=sec
     ctx.workspace.write_json('probe/nameservers.json', {'domain':ctx.config.domain,'nameservers':ns})
     ctx.workspace.write_json('probe/dnssec.json', sec)
-    ctx.events.emit('dns_probe','completed','DNS probe completed', data={'dnssec_enabled':sec['dnssec_enabled']})
+    ctx.events.emit('dns_probe','completed','DNS probe completed', data={'dnssec_probe_enabled':sec.get('probe_dnssec_enabled'), 'probe_status': sec.get('probe_status')})
     return sec
