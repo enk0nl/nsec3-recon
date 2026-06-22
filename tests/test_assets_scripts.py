@@ -66,3 +66,15 @@ def test_prevalence_cleaner_formats(tmp_path):
     assets=tmp_path/'assets'
     subprocess.check_call(['bash','scripts/prepare-seclists.sh','--archive',str(src),'--assets-dir',str(assets)])
     assert (assets/'wordlists/seclists-subdomains-full-clean.txt').read_text().splitlines()==['www','www','www','www','api']
+
+def test_install_go_tools_uses_amass_main_command():
+    assert 'CGO_ENABLED=0 go install -v github.com/owasp-amass/amass/v5/cmd/amass@main' in Path('scripts/install.sh').read_text()
+
+def test_install_go_tools_uses_subfinder_latest_command():
+    assert 'go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest' in Path('scripts/install.sh').read_text()
+
+def test_install_go_tools_verifies_versions_after_install():
+    text=Path('scripts/install.sh').read_text()
+    assert 'scripts/check-tools.sh --strict' in text
+    assert 'AMASS_BIN="$HOME/go/bin/amass"' in text
+    assert 'SUBFINDER_BIN="$HOME/go/bin/subfinder"' in text

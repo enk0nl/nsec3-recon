@@ -166,32 +166,29 @@ The project does not hardcode a fragile hashcat download URL. Use the official h
 
 ### Amass
 
-Install Amass v5.1.1 or newer from the official GitHub releases. Place the binary at:
-
-```text
-$HOME/go/bin/amass
-```
-
-or ensure it is in `PATH`. Verify with:
+Install Amass v5.1.1 or newer with Go:
 
 ```bash
-amass -version
+export PATH="$PATH:$HOME/go/bin"
+CGO_ENABLED=0 go install -v github.com/owasp-amass/amass/v5/cmd/amass@main
 $HOME/go/bin/amass -version
 ```
 
-Amass is optional only if the `osint/amass` scheduler arm is disabled. Do not rely on apt for Amass unless the resulting version is verified to be at least 5.1.1.
+`CGO_ENABLED=0` is intentional. The command tracks `@main`, so version verification after install is mandatory. If `$HOME/go/bin/amass -version` reports a version older than 5.1.1, the install is not acceptable for the default enabled `osint/amass` scheduler arm. Fallback version commands still accepted by tool checks are `amass -version`, `amass version`, and `amass --version`.
+
+Amass is optional only if the `osint/amass` scheduler arm is disabled.
 
 ### Subfinder and Go
 
 Install Subfinder v2.14.0 or newer with Go:
 
 ```bash
-go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@v2.14.0
 export PATH="$PATH:$HOME/go/bin"
-subfinder -version
+go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+$HOME/go/bin/subfinder -version
 ```
 
-If using `@latest`, check the version afterwards with `subfinder -version`; the required version is `>= 2.14.0`.
+The `@latest` selector is a moving target, so version verification after install is mandatory. If `$HOME/go/bin/subfinder -version` reports a version older than 2.14.0, the install is not acceptable for the default enabled `osint/subfinder` scheduler arm.
 
 Subfinder upstream currently requires Go 1.24 or newer. Check Go with:
 

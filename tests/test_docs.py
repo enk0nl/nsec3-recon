@@ -53,3 +53,13 @@ def test_docs_describe_combining_all_discovery_dns_wordlists():
     assert 'cleaned `subdomains-top1million-full.7z`' in text or 'cleaned subdomains-top1million-full.7z' in text
     assert 'labels split on dots' in text
     assert 'leading empty line' in text
+
+def test_docs_include_amass_install_command():
+    assert 'CGO_ENABLED=0 go install -v github.com/owasp-amass/amass/v5/cmd/amass@main' in Path('docs/installation.md').read_text()
+
+def test_docs_include_subfinder_install_command():
+    assert 'go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest' in Path('docs/installation.md').read_text()
+
+def test_docs_warn_main_and_latest_are_moving_targets():
+    text=Path('docs/installation.md').read_text().lower()
+    assert '@main' in text and '@latest' in text and 'version verification after install is mandatory' in text
