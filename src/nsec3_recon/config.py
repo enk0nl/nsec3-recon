@@ -25,8 +25,8 @@ class PipelineConfig:
     nsec3map_python: str = "python3"
     scheduler_bin: str = "python3 -m nsec3_candidate_scheduler"
     hashcat_bin: str = "hashcat"
-    amass_bin: str = "/home/vboxuser/go/bin/amass"
-    subfinder_bin: str = "/home/vboxuser/go/bin/subfinder"
+    amass_bin: str = "~/go/bin/amass"
+    subfinder_bin: str = "~/go/bin/subfinder"
     assets_dir: Path = Path("assets")
     dry_run: bool = False
     verbose: bool = False

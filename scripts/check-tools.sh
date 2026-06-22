@@ -22,7 +22,8 @@ check_tool(){
 import sys
 from nsec3_recon.adapters.tools import check_hashcat, check_amass, check_subfinder
 name=sys.argv[1]
-check={"hashcat":check_hashcat,"amass":check_amass,"subfinder":check_subfinder}[name]()
+paths={"hashcat":"hashcat","amass":__import__("os").environ.get("AMASS_BIN", "~/go/bin/amass"),"subfinder":__import__("os").environ.get("SUBFINDER_BIN", "~/go/bin/subfinder")}
+check={"hashcat":check_hashcat,"amass":check_amass,"subfinder":check_subfinder}[name](paths[name])
 if check.ok:
     print(f"[ok] {check.name} version={check.version} required>={check.required} path={check.path}")
     raise SystemExit(0)

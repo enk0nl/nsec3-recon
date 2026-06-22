@@ -133,9 +133,9 @@ Verify versions explicitly:
 ```bash
 hashcat --version
 amass -version
-/home/vboxuser/go/bin/amass -version
+$HOME/go/bin/amass -version
 subfinder -version
-/home/vboxuser/go/bin/subfinder -version
+$HOME/go/bin/subfinder -version
 ```
 
 Debian/Ubuntu apt repositories may be behind, especially for hashcat. Do not assume apt hashcat satisfies `hashcat >= 7.1.2`; always verify after installation.
@@ -169,14 +169,14 @@ The project does not hardcode a fragile hashcat download URL. Use the official h
 Install Amass v5.1.1 or newer from the official GitHub releases. Place the binary at:
 
 ```text
-/home/vboxuser/go/bin/amass
+$HOME/go/bin/amass
 ```
 
 or ensure it is in `PATH`. Verify with:
 
 ```bash
 amass -version
-/home/vboxuser/go/bin/amass -version
+$HOME/go/bin/amass -version
 ```
 
 Amass is optional only if the `osint/amass` scheduler arm is disabled. Do not rely on apt for Amass unless the resulting version is verified to be at least 5.1.1.
@@ -199,4 +199,4 @@ Subfinder upstream currently requires Go 1.24 or newer. Check Go with:
 go version
 ```
 
-If Debian/Ubuntu apt provides an older Go version, install Go from the upstream Go distribution or another trusted package source. After installing Go, ensure `$HOME/go/bin` is in `PATH`. If Subfinder is installed at `/home/vboxuser/go/bin/subfinder`, the default scheduler config can use that path directly.
+If Debian/Ubuntu apt provides an older Go version, install Go from the upstream Go distribution or another trusted package source. After installing Go, ensure `$HOME/go/bin` is in `PATH`. If Subfinder is installed at `$HOME/go/bin/subfinder`, the default scheduler config can use that path directly.
