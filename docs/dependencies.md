@@ -85,3 +85,7 @@ The jobs.jsonl mapper treats `shared_new_cracks`, `marginal_new_cracks`, and `ne
 Last/Previous completed slice panels show completed scheduler jobs/slices: `18/150` is the job or slice index out of configured scheduler total slices, while `total=218` inside slice details is the global cracked-hash count. NSEC3 progress uses cracked hashes / total hashes from jobs.jsonl `total_cracks` and hashcatify `hash_count`; unique discovered names are shown separately.
 
 Recent activity shows OSINT start and completion/return events. OSINT returns candidate names, not discovered names, unless later validated by NSEC3 cracking. Discovered names are AXFR/NSEC/NSEC3-validated outputs only.
+
+## Pinned source dependencies
+
+Bootstrap source dependencies default to pinned refs: nsec3map `5af04b9c900b8f0f1a2113a22f5b34e67e637c80`, scheduler `d47362b2342d007a13fff5d8301ccf7e9bd3c52f`, PCFG `171f89e85206cb22e89c3803c13f6a320d538e8b`, SecLists `198047f1e22251e3b88b98b10e8bd15283e8a1e9`, OpenTaal `b250510dda431785f962019167d1415198ff3905`, and Dutch DNS wordlists `87403dff13f2a9da53084c88412a6e19280003ec`. Pipeline setup writes requested refs and resolved commits to `config/dependency_manifest.json`.

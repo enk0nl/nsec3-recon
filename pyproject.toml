@@ -7,7 +7,7 @@ name = "nsec3-recon"
 version = "0.1.0"
 description = "End-to-end DNS/NSEC3 reconnaissance orchestrator"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = ["dnspython", "rich", "psycopg2-binary"]
 
 [project.optional-dependencies]
@@ -18,3 +18,17 @@ nsec3-recon = "nsec3_recon.cli:main"
 
 [tool.setuptools.package-data]
 nsec3_recon = ["templates/*.json"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+markers = [
+  "slow: slow asset or external process tests",
+  "integration: multi-stage pipeline or external-process tests",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = []

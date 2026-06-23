@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$REPO_ROOT"
 DEPS_DIR="deps/src"
 ASSETS_DIR="assets"
 FORCE=0
@@ -10,7 +13,7 @@ while [[ $# -gt 0 ]]; do
     --assets-dir) ASSETS_DIR="$2"; shift 2;;
     --force) FORCE=1; shift;;
     --copy) COPY=1; shift;;
-    *) echo "unknown arg $1" >&2; exit 2;;
+    *) echo "[error] unknown argument: $1" >&2; exit 2;;
   esac
 done
 SRC_DIR="$DEPS_DIR/nsec3-candidate-scheduler/models"

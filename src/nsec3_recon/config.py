@@ -11,6 +11,15 @@ def normalize_domain(domain: str) -> str:
         raise ValueError(f"invalid domain: {domain!r}")
     return d
 
+def resolve_command_path(command: str) -> str:
+    if not command:
+        return command
+    token = command.split()[0]
+    if token.startswith(".") or "/" in token or "\\" in token:
+        resolved = str(Path(token).expanduser().resolve())
+        return command.replace(token, resolved, 1)
+    return command
+
 @dataclass
 class PipelineConfig:
     domain: str
@@ -31,6 +40,10 @@ class PipelineConfig:
     assets_dir: Path = Path("assets")
     dry_run: bool = False
     verbose: bool = False
+    dns_timeout: float = 3.0
+    dns_lifetime: float = 10.0
+    axfr_timeout: float = 10.0
+    osint_enabled: bool = True
     tools: dict = field(default_factory=dict)
 
     def resolved(self):
@@ -43,6 +56,15 @@ class PipelineConfig:
         self.dashboard_refresh_rate = min(self.dashboard_refresh_rate, 10.0)
         self.assets_dir = Path(self.assets_dir).resolve()
         self.nsec3map_source_dir = Path(self.nsec3map_source_dir).resolve()
+        for name in ("dns_timeout", "dns_lifetime", "axfr_timeout"):
+            value = float(getattr(self, name))
+            if value <= 0:
+                raise ValueError(f"{name.replace('_', '-')} must be > 0")
+            setattr(self, name, value)
+        self.nsec3map_python = resolve_command_path(self.nsec3map_python)
+        self.hashcat_bin = resolve_command_path(self.hashcat_bin)
+        self.amass_bin = resolve_command_path(self.amass_bin)
+        self.subfinder_bin = resolve_command_path(self.subfinder_bin)
         if self.out_dir is not None:
             self.out_dir = Path(self.out_dir)
         if self.scheduler_config is not None:

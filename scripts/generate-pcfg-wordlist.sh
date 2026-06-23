@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$REPO_ROOT"
 REPO=${PCFG_REPO:-deps/src/pcfg-subdomain-generator}
 OUT=${PCFG_OUTPUT:-assets/wordlists/rfc1035_pcfg_top100000000.txt}
 COUNT=100000000
@@ -8,7 +11,7 @@ FORCE=${FORCE:-0}
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --force) FORCE=1; shift;;
-    *) echo "unknown arg $1"; exit 2;;
+    *) echo "[error] unknown argument: $1"; exit 2;;
   esac
 done
 [[ -f "$REPO/pcfg_guesser.py" ]] || { echo "missing PCFG generator: $REPO/pcfg_guesser.py"; exit 1; }

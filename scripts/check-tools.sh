@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 STRICT=0; NO_OSINT=0
-while [[ $# -gt 0 ]]; do case "$1" in --strict) STRICT=1; shift;; --no-osint) NO_OSINT=1; shift;; *) echo "unknown arg $1" >&2; exit 2;; esac; done
+while [[ $# -gt 0 ]]; do case "$1" in --strict) STRICT=1; shift;; --no-osint) NO_OSINT=1; shift;; *) echo "[error] unknown argument: $1" >&2; exit 2;; esac; done
 missing=0
 ok(){ echo "[ok] $1"; }
 miss(){ echo "[missing] $1"; missing=1; }

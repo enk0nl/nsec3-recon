@@ -180,3 +180,30 @@ def normalize_scheduler_record(record: dict) -> SchedulerParseResult | None:
         'raw_record': record,
     }
     return SchedulerParseResult(True, '', data)
+
+
+def normalize_scheduler_status_record(record: dict) -> SchedulerParseResult | None:
+    if not isinstance(record, dict):
+        return None
+    arm = _first(record, 'arm', 'arm_name', 'arm_type')
+    if not arm:
+        return None
+    status = _first(record, 'status', 'execution_status', 'availability_status')
+    fields = ('exhausted', 'failed', 'unavailable', 'reason', 'availability_reason', 'error')
+    if status is None and not any(k in record for k in fields):
+        return None
+    failed = bool(record.get('failed')) or status in {'failed', 'error'}
+    unavailable = bool(record.get('unavailable')) or status in {'unavailable'}
+    exhausted = bool(record.get('exhausted')) or status in {'exhausted'}
+    data = {
+        'arm': str(arm),
+        'last_status': status or ('failed' if failed else 'unavailable' if unavailable else 'exhausted' if exhausted else None),
+        'exhausted': exhausted,
+        'failed': failed,
+        'unavailable': unavailable,
+        'reason': _first(record, 'reason', 'error'),
+        'availability_reason': _first(record, 'availability_reason'),
+        'source': 'jobs_jsonl',
+        'raw_record': record,
+    }
+    return SchedulerParseResult(True, '', data)

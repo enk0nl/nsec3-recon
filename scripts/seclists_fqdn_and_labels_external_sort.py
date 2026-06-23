@@ -57,10 +57,13 @@ def run_sort_count(candidates_path: Path, out_prefix: Path, sort_memory: str, tm
     output_counts_path = out_prefix.with_name(out_prefix.name + "_total_counts.tsv")
     counts_path = candidates_path.with_suffix(".final_counts.tsv")
     values_path = out_prefix.with_name(out_prefix.name + "_total.txt")
-    subprocess.run(["sort", "-S", sort_memory, "-T", str(tmp_dir), str(candidates_path)], check=True, stdout=sorted_path.open("w", encoding="utf-8"))
-    uniq = subprocess.run(["uniq", "-c", str(sorted_path)], check=True, text=True, capture_output=True)
-    with unsorted_counts.open("w", encoding="utf-8") as out:
-        for line in uniq.stdout.splitlines():
+    with sorted_path.open("w", encoding="utf-8") as sorted_out:
+        subprocess.run(["sort", "-S", sort_memory, "-T", str(tmp_dir), str(candidates_path)], check=True, stdout=sorted_out)
+    raw_counts_path = candidates_path.with_suffix(".uniq_counts.txt")
+    with raw_counts_path.open("w", encoding="utf-8") as raw_counts:
+        subprocess.run(["uniq", "-c", str(sorted_path)], check=True, text=True, stdout=raw_counts)
+    with raw_counts_path.open("r", encoding="utf-8") as counts_in, unsorted_counts.open("w", encoding="utf-8") as out:
+        for line in counts_in:
             stripped = line.strip()
             if not stripped:
                 continue

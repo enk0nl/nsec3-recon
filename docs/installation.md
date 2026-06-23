@@ -360,3 +360,9 @@ The jobs.jsonl mapper treats `shared_new_cracks`, `marginal_new_cracks`, and `ne
 Last/Previous completed slice panels show completed scheduler jobs/slices: `18/150` is the job or slice index out of configured scheduler total slices, while `total=218` inside slice details is the global cracked-hash count. NSEC3 progress uses cracked hashes / total hashes from jobs.jsonl `total_cracks` and hashcatify `hash_count`; unique discovered names are shown separately.
 
 Recent activity shows OSINT start and completion/return events. OSINT returns candidate names, not discovered names, unless later validated by NSEC3 cracking. Discovered names are AXFR/NSEC/NSEC3-validated outputs only.
+
+## Production/beta reproducibility
+
+`scripts/bootstrap.sh` defaults to pinned Git dependency refs and records source provenance during pipeline setup in `config/dependency_manifest.json`. Override refs with `NSEC3MAP_REF`, `SCHEDULER_REF`, `PCFG_REF`, `SECLISTS_REF`, `OPENTAAL_REF`, or `DUTCH_DNS_WORDLISTS_REF` only when intentionally testing a different dependency revision.
+
+Non-Git binaries are checked against minimum versions rather than exact local builds: hashcat >= 7.1.2, Python >= the project `requires-python`, Go >= 1.24.0 when building Go tools, Amass >= 5.1.1, and Subfinder >= 2.14.0. Amass/Subfinder are required only when OSINT arms are enabled; use `--disable-osint` for a fully non-OSINT scheduler config.
