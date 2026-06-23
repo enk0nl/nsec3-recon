@@ -38,3 +38,35 @@ def test_cli_no_hashcat_optimized_kernel_flags(tmp_path, capsys):
     cfg = json.loads((out/'config/scheduler_config.json').read_text())
     assert cfg['hashcat']['optimized_kernels'] is False
     assert cfg['hashcat']['optimized_kernel_failover'] is False
+
+def test_cli_default_nsec3map_hashlimit_is_zero(tmp_path, capsys):
+    import json
+    out = tmp_path / 'run'
+    assert main(['example.nl','--dry-run','--out-dir',str(out),'--dashboard','plain']) == 0
+    cfg = json.loads((out/'config/pipeline_config.json').read_text())
+    summary = json.loads((out/'reports/summary.json').read_text())
+    stdout = capsys.readouterr().out
+    assert cfg['nsec3map_hashlimit'] == 0
+    assert summary['nsec3map_hashlimit'] == 0
+    assert 'nsec3map hashlimit: 0' in stdout
+
+
+def test_cli_accepts_nsec3map_hashlimit_positive_value(tmp_path, capsys):
+    import json
+    out = tmp_path / 'run'
+    assert main(['example.nl','--dry-run','--out-dir',str(out),'--dashboard','plain','--nsec3map-hashlimit','10000']) == 0
+    cfg = json.loads((out/'config/pipeline_config.json').read_text())
+    summary = json.loads((out/'reports/summary.json').read_text())
+    stdout = capsys.readouterr().out
+    assert cfg['nsec3map_hashlimit'] == 10000
+    assert summary['nsec3map_hashlimit'] == 10000
+    assert 'nsec3map hashlimit: 10000' in stdout
+    assert '--hashlimit=10000' in stdout
+
+
+def test_cli_rejects_negative_nsec3map_hashlimit(tmp_path, capsys):
+    out = tmp_path / 'run'
+    assert main(['example.nl','--nsec3map-hashlimit','-1','--out-dir',str(out)]) == 2
+    err = capsys.readouterr().err
+    assert 'nsec3map hashlimit must be >= 0' in err
+    assert not out.exists()

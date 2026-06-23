@@ -8,10 +8,10 @@ def map_py_path(source_dir: Path) -> Path:
 def detect_command(source_dir: Path, python: str, domain: str) -> list[str]:
     return [python, "map.py", "--detect-only", domain]
 
-def enumerate_command(source_dir: Path, python: str, domain: str, zone_file: Path) -> list[str]:
+def enumerate_command(source_dir: Path, python: str, domain: str, zone_file: Path, hashlimit: int = 0) -> list[str]:
     zone_file = Path(zone_file).resolve()
     zone_file.parent.mkdir(parents=True, exist_ok=True)
-    return [python, "map.py", f"--output={zone_file}", domain]
+    return [python, "map.py", f"--output={zone_file}", f"--hashlimit={int(hashlimit)}", domain]
 
 def parse_detect_output(stdout: str, domain: str) -> str | None:
     wanted = domain.rstrip(".").lower()

@@ -44,6 +44,16 @@ The jobs.jsonl mapper treats `shared_new_cracks`, `marginal_new_cracks`, and `ne
 
 Last/Previous completed slice panels show completed scheduler jobs/slices: `18/150` is the job or slice index out of configured scheduler total slices, while `total=218` inside slice details is the global cracked-hash count. NSEC3 progress uses cracked hashes / total hashes from jobs.jsonl `total_cracks` and hashcatify `hash_count`; unique discovered names are shown separately.
 
+### nsec3map hash collection limit
+
+Use `--nsec3map-hashlimit INT` to pass `--hashlimit` to nsec3map during NSEC3 enumeration. The default is `0`, which means no explicit limit. Use a positive value for short test runs, demos, or bounded experiments; use the default `0` for normal runs.
+
+```bash
+nsec3-recon example.nl
+nsec3-recon example.nl --nsec3map-hashlimit 0
+nsec3-recon example.nl --nsec3map-hashlimit 10000
+```
+
 ## Production/beta controls
 
 Relevant hardening flags include `--disable-osint`, `--dns-timeout`, `--dns-lifetime`, and `--axfr-timeout`. Report artifacts are authoritative even when `--dashboard off` is used or the Rich dashboard fails. The dependency manifest is written to `config/dependency_manifest.json` and referenced from `reports/summary.json`.

@@ -54,8 +54,9 @@ class Pipeline:
                 print('Planned commands:')
                 print(f"Hashcat optimized kernels: {'enabled' if ctx.config.hashcat_optimized_kernels else 'disabled'}")
                 print(f"Hashcat optimized-kernel failover: {'enabled' if ctx.config.hashcat_optimized_kernel_failover else 'disabled'}")
+                print(f"nsec3map hashlimit: {ctx.config.nsec3map_hashlimit}")
                 print(' '.join([ctx.config.nsec3map_python, 'map.py', '--detect-only', ctx.config.domain]))
-                print(' '.join([ctx.config.nsec3map_python, 'map.py', f"--output={ctx.workspace.root/'nsec3map/zone.txt'}", ctx.config.domain]))
+                print(' '.join([ctx.config.nsec3map_python, 'map.py', f"--output={ctx.workspace.root/'nsec3map/zone.txt'}", f"--hashlimit={ctx.config.nsec3map_hashlimit}", ctx.config.domain]))
                 print(' '.join([ctx.config.nsec3map_python, '<hashcatify.py>', str(ctx.workspace.root/'nsec3map/zone.txt'), str(hf)]))
                 print(' '.join(ctx.config.scheduler_command(ctx.workspace.root,hf,sc)))
                 write_summary(ctx,'dry_run'); return ctx

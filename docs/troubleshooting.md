@@ -28,7 +28,7 @@ The default pipeline does not require editable nsec3map installation. It uses di
 ```bash
 cd deps/src/nsec3map
 python3 map.py --detect-only example.nl
-python3 map.py --output=/absolute/workspace/nsec3map/zone.txt example.nl
+python3 map.py --output=/absolute/workspace/nsec3map/zone.txt --hashlimit=0 example.nl
 ```
 
 Install `python3-dev`, `gcc`/`build-essential`, `libssl-dev`, and `libssl3` only if building the optional OpenSSL-accelerated extension.
@@ -92,13 +92,15 @@ python -m pip install dnspython psycopg2-binary
 
 ## map.py fatal: unable to open output file
 
+NSEC3 Recon passes `--nsec3map-hashlimit INT` only to nsec3map enumeration. The default is `0`, meaning no explicit limit; positive values bound collection for short test runs, demos, or experiments.
+
 The error `map.py: fatal: unable to open output file` can happen when a relative output path is passed while `map.py` runs with a different cwd, such as `deps/src/nsec3map`. The pipeline now creates the nsec3map output directory first and passes absolute output paths to map.py.
 
 For manual runs, either use absolute output paths or run from the directory where the relative path should be resolved:
 
 ```bash
 cd deps/src/nsec3map
-../../../.venv/bin/python map.py --output=/absolute/path/to/runs/example.nl/nsec3map/zone.txt example.nl
+../../../.venv/bin/python map.py --output=/absolute/path/to/runs/example.nl/nsec3map/zone.txt --hashlimit=0 example.nl
 ```
 
 ## Missing scheduler model assets

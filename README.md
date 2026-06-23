@@ -40,6 +40,16 @@ python3 map.py --detect-only example.nl
 python3 map.py --output=<workspace>/nsec3map/zone.txt example.nl
 ```
 
+### nsec3map hash collection limit
+
+Use `--nsec3map-hashlimit INT` to pass `--hashlimit` to nsec3map during NSEC3 enumeration. The default is `0`, which means no explicit limit. Use a positive value for short test runs, demos, or bounded experiments; use the default `0` for normal runs.
+
+```bash
+nsec3-recon example.nl
+nsec3-recon example.nl --nsec3map-hashlimit 0
+nsec3-recon example.nl --nsec3map-hashlimit 10000
+```
+
 ## Dependencies
 
 Required Python dependencies are `dnspython` and `rich`. Runtime tools include `python3 map.py` from the cloned nsec3map fork, `python3 -m nsec3_candidate_scheduler`, and `hashcat` for the NSEC3 path. Amass and Subfinder are optional OSINT arms.
