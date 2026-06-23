@@ -57,7 +57,7 @@ Run `scripts/check-tools.sh` to verify installed versions. Use `scripts/check-to
 
 SecLists is sparse-checked out with only `Discovery/DNS`. `scripts/prepare-seclists.sh` extracts `Discovery/DNS/subdomains-top1million-full.7z` into a temporary directory, removes the prevalence/count column, and writes `assets/wordlists/seclists-subdomains-full-clean.txt`.
 
-SecLists combining can take several minutes and may use significant temporary disk space. PCFG top 100M generation can take a long time and creates a large file; use `--skip-pcfg` during bootstrap/install when you do not need that asset immediately.
+`[info] Preparing SecLists DNS wordlist` is printed before work starts. SecLists combining can take several minutes and may use significant temporary disk space. `[info] Generating PCFG DNS wordlist` is printed before work starts. PCFG top 100M generation can take a long time and creates a large file; use `--skip-pcfg` during bootstrap/install when you do not need that asset immediately.
 
 The cleaned `subdomains-top1million-full.7z` output is combined with all Discovery/DNS `*.txt` wordlists. The combiner emits both original FQDN-like candidates and labels split on dots, then frequency-sorts with GNU `sort` and `uniq`. The final `assets/wordlists/seclists_total.txt` wordlist intentionally starts with one leading empty line. Counts are not retained by default; pass `--keep-counts` to write `assets/wordlists/seclists_total_counts.tsv` for debugging.
 

@@ -36,12 +36,12 @@ PY
 TMP_ARGS=()
 [[ -n "${TMP_DIR:-}" ]] && TMP_ARGS+=(--tmp-dir "$TMP_DIR")
 [[ $KEEP_COUNTS -eq 1 ]] && TMP_ARGS+=(--keep-counts)
-echo "[long] Preparing SecLists DNS wordlist"
-echo "[long] This cleans top1m prevalence columns, emits FQDNs and labels, and frequency-sorts Discovery/DNS *.txt files."
-echo "[long] This can take several minutes and may use significant temporary disk space."
-echo "[long] Output: $ASSETS/wordlists/seclists_total.txt"
-echo "[long] sort memory: ${SORT_MEMORY:-1G}"
-if [[ -n "${TMP_DIR:-}" ]]; then echo "[long] temp dir: $TMP_DIR"; else echo "[long] temp dir: system default"; fi
+echo "[info] Preparing SecLists DNS wordlist"
+echo "[info] This cleans top1m prevalence columns, emits FQDNs and labels, and frequency-sorts Discovery/DNS *.txt files."
+echo "[info] This can take several minutes and may use significant temporary disk space."
+echo "[info] Output: $ASSETS/wordlists/seclists_total.txt"
+echo "[info] sort memory: ${SORT_MEMORY:-1G}"
+if [[ -n "${TMP_DIR:-}" ]]; then echo "[info] temp dir: $TMP_DIR"; else echo "[info] temp dir: system default"; fi
 python3 scripts/seclists_fqdn_and_labels_external_sort.py \
   --input-dir "$DNS_DIR" \
   --extra-input "$CLEAN" \

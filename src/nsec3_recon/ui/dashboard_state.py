@@ -120,11 +120,12 @@ class DashboardState:
         if not data or data.get('type') != 'osint_status':
             return False
         arm=data.get('arm') or 'osint/unknown'; status=data.get('status') or 'unknown'
-        current=self.osint_status.setdefault(arm, {'started_at': None, 'completed_at': None})
+        tool=data.get('tool') or str(arm).rsplit('/', 1)[-1]
+        current=self.osint_status.setdefault(tool, {'started_at': None, 'completed_at': None})
         current.update({k: data.get(k) for k in ('tool','status','raw_count','candidate_count','exit_code','reason','wordlist') if k in data})
         if status in {'ready','exhausted','failed'}:
             current['completed_at']=datetime.now().strftime('%H:%M:%S')
-        key=(arm,status,data.get('candidate_count'),data.get('exit_code'),data.get('reason'))
+        key=(arm,status,data.get('raw_count'),data.get('candidate_count'),data.get('exit_code'),data.get('reason'),data.get('wordlist'))
         if key in self.emitted_osint_status_events:
             return False
         self.emitted_osint_status_events.add(key)
@@ -132,19 +133,21 @@ class DashboardState:
         return True
 
     def _format_osint_status_activity(self, data):
-        arm=data.get('arm') or 'osint/unknown'; status=data.get('status') or 'completed'; count=data.get('candidate_count')
+        arm=data.get('arm') or 'osint/unknown'; tool=data.get('tool') or str(arm).rsplit('/', 1)[-1]
+        status=data.get('status') or 'completed'; count=data.get('candidate_count')
         if status == 'failed':
-            parts=[f"{arm} failed"]
+            parts=[]
             if data.get('exit_code') is not None: parts.append(f"exit_code={data.get('exit_code')}")
             if data.get('reason'): parts.append(f"reason={data.get('reason')}")
-            return ': '.join([parts[0], ' '.join(parts[1:])]) if len(parts)>1 else parts[0]
+            suffix = ': ' + ' '.join(parts) if parts else ''
+            return f"[osint] {tool} failed{suffix}"
         if status == 'exhausted':
-            return f"{arm} exhausted: no candidate names"
+            return f"[osint] {tool} exhausted: no candidate names"
         if count is None:
-            return f"{arm} completed"
+            return f"[osint] {tool} completed"
         if int(count) > 0:
-            return f"{arm} completed: {int(count)} candidate names ready"
-        return f"{arm} completed: no candidate names"
+            return f"[osint] {tool} completed: {int(count)} candidate names ready"
+        return f"[osint] {tool} completed: no candidate names"
     def _scheduler_fallback_key(self, data):
         return (data.get('slice_index') or data.get('job_id'), data.get('arm'), data.get('new'), data.get('reward'), data.get('runtime_seconds'))
     def _scheduler_record_key(self, data):

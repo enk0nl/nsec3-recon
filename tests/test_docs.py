@@ -225,3 +225,13 @@ def test_dashboard_docs_explain_osint_candidate_vs_discovered():
     text='\n'.join(p.read_text() for p in Path('docs').glob('*.md'))
     assert 'OSINT returns candidate names' in text
     assert 'Discovered names are AXFR/NSEC/NSEC3-validated outputs' in text
+
+
+def test_docs_do_not_use_long_prefix():
+    text='\n'.join(p.read_text() for p in Path('docs').glob('*.md'))
+    assert '[long]' not in text
+
+def test_docs_describe_long_running_tasks_with_info_prefix():
+    text=Path('docs/installation.md').read_text()+Path('docs/dependencies.md').read_text()
+    assert '[info] Preparing SecLists DNS wordlist' in text
+    assert '[info] Generating PCFG DNS wordlist' in text

@@ -20,10 +20,10 @@ if [[ -f "$OUT_ABS" && "$FORCE" != "1" ]]; then
   echo "[skip] PCFG wordlist already exists: $OUT"
   exit 0
 fi
-echo "[long] Generating PCFG DNS wordlist"
-echo "[long] Command: $CMD"
-echo "[long] Output: $OUT"
-echo "[long] This can take a long time and produces a large file."
+echo "[info] Generating PCFG DNS wordlist"
+echo "[info] Command: $CMD"
+echo "[info] Output: $OUT"
+echo "[info] This can take a long time and produces a large file."
 (cd "$REPO" && python3 pcfg_guesser.py --rule dutch_subdomains --limit 100000000 > "$TMP")
 mv "$TMP" "$OUT_ABS"
 python3 - "$OUT" "$COUNT" "$CMD" <<'PY'

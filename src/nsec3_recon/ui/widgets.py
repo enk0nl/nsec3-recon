@@ -1,7 +1,8 @@
 from __future__ import annotations
 from .theme import STATUS_GLYPHS, STATUS_STYLES
+import shutil
 
-ARM_ROW_LIMIT = 8
+ARM_ROW_LIMIT = 16
 RECOVERED_ROW_LIMIT = 24
 ACTIVITY_ROW_LIMIT = 10
 
@@ -45,7 +46,16 @@ def _fmt_progress(value):
     if value is None: return '–'
     return f"{value:.2f}%" if value < 1 else f"{value:.1f}%"
 
-def _build_arm_panel(state):
+def compute_arm_table_max_rows(terminal_height=None):
+    if terminal_height is None:
+        terminal_height = shutil.get_terminal_size(fallback=(120, 40)).lines
+    if terminal_height >= 50:
+        return 18
+    if terminal_height >= 40:
+        return 14
+    return 8
+
+def _build_arm_panel(state, max_rows=None):
     from rich.panel import Panel
     from rich.table import Table
     from rich.text import Text
@@ -53,18 +63,21 @@ def _build_arm_panel(state):
     arms.add_column('Arm', overflow='ellipsis', ratio=3, no_wrap=True)
     for col in ('Runs','Total','Last','R','Score','Avg t','Seen'):
         arms.add_column(col, justify='right', no_wrap=True)
+    row_limit = max_rows if max_rows is not None else compute_arm_table_max_rows()
+    row_limit = max(1, int(row_limit))
     sorted_arms=sorted(state.arm_stats.values(), key=lambda a:(not a.active, -a.total_new, -(a.last_score if a.last_score is not None else float('-inf')), -a.run_count))
-    for a in sorted_arms[:ARM_ROW_LIMIT]:
+    visible_arms = sorted_arms[:row_limit]
+    for a in visible_arms:
         arm_name = shorten_middle(a.name, 30)
         if a.active: arm_name = '▶ ' + arm_name
         arms.add_row(arm_name, str(a.run_count), str(a.total_new), str(a.last_new), _fmt_float(a.last_reward), _fmt_float(a.last_score), _fmt_runtime(a.avg_runtime), str(a.last_seen_slice or '-'))
     if not sorted_arms:
         arms.add_row('waiting for scheduler slices', '', '', '', '', '', '', '')
-    visible_count = max(1, min(len(sorted_arms), ARM_ROW_LIMIT))
-    for _ in range(max(0, ARM_ROW_LIMIT - visible_count)):
+    visible_count = max(1, min(len(sorted_arms), row_limit))
+    for _ in range(max(0, row_limit - visible_count)):
         arms.add_row('', '', '', '', '', '', '', '')
-    hidden=max(0, len(sorted_arms)-ARM_ROW_LIMIT)
-    footer = f"+{hidden} more arms" if hidden else "Total=sum(new)  R=latest reward  Score=latest score"
+    hidden=max(0, len(sorted_arms)-len(visible_arms))
+    footer = f"+{hidden} more arms" if hidden > 0 else None
     return Panel(arms, title='Arm statistics', subtitle=footer, border_style='green')
 
 def _build_discovered_panel(state):

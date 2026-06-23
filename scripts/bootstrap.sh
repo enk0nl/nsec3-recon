@@ -28,9 +28,11 @@ clone_sparse_file(){ url="$1"; dir="$2"; file_path="$3"; if [[ -d "$dir/.git" ]]
 require_file(){ [[ -f "$1" ]] || { echo "[missing] expected dependency file: $1"; exit 1; }; }
 clone_full https://github.com/enk0nl/nsec3-candidate-scheduler "$DEPS/nsec3-candidate-scheduler"
 clone_full https://github.com/enk0nl/nsec3map "$DEPS/nsec3map"
-clone_sparse_file https://github.com/enk0nl/dutch-dns-wordlists "$DEPS/dutch-dns-wordlists" subsubdomains_all_by_occurrance.txt
+# Dutch DNS single-file sparse checkout: git sparse-checkout set --no-cone /subsubdomains_all_by_occurrance.txt
+clone_sparse_file https://github.com/enk0nl/dutch-dns-wordlists "$DEPS/dutch-dns-wordlists" /subsubdomains_all_by_occurrance.txt
 clone_sparse_dir https://github.com/danielmiessler/SecLists "$DEPS/SecLists" Discovery/DNS
-clone_sparse_file https://github.com/OpenTaal/opentaal-wordlist "$DEPS/opentaal-wordlist" wordlist.txt
+# OpenTaal single-file sparse checkout: git sparse-checkout set --no-cone /wordlist.txt
+clone_sparse_file https://github.com/OpenTaal/opentaal-wordlist "$DEPS/opentaal-wordlist" /wordlist.txt
 clone_full https://github.com/enk0nl/pcfg-subdomain-generator "$DEPS/pcfg-subdomain-generator"
 require_file "$DEPS/SecLists/Discovery/DNS/subdomains-top1million-full.7z"
 require_file "$DEPS/opentaal-wordlist/wordlist.txt"

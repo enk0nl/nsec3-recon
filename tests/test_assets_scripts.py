@@ -153,11 +153,15 @@ def test_bootstrap_prepares_models_after_scheduler_clone():
     assert 'scripts/prepare-assets.sh' in text
 
 
-def test_prepare_seclists_announces_long_running_task():
-    assert '[long] Preparing SecLists DNS wordlist' in Path('scripts/prepare-seclists.sh').read_text()
+def test_prepare_seclists_uses_info_prefix_not_long():
+    text=Path('scripts/prepare-seclists.sh').read_text()
+    assert '[info] Preparing SecLists DNS wordlist' in text
+    assert '[long]' not in text
 
-def test_generate_pcfg_announces_long_running_task():
-    assert '[long] Generating PCFG DNS wordlist' in Path('scripts/generate-pcfg-wordlist.sh').read_text()
+def test_generate_pcfg_uses_info_prefix_not_long():
+    text=Path('scripts/generate-pcfg-wordlist.sh').read_text()
+    assert '[info] Generating PCFG DNS wordlist' in text
+    assert '[long]' not in text
 
 def test_pcfg_skip_does_not_print_long_warning(tmp_path):
     repo=tmp_path/'repo'; (repo/'Rules/dutch_subdomains').mkdir(parents=True); (repo/'pcfg_guesser.py').write_text('print("x")')
@@ -166,7 +170,8 @@ def test_pcfg_skip_does_not_print_long_warning(tmp_path):
     cp=subprocess.run(['bash','scripts/generate-pcfg-wordlist.sh'], text=True, capture_output=True, env=env)
     assert cp.returncode == 0
     assert '[skip] PCFG wordlist already exists' in cp.stdout
-    assert '[long] Generating PCFG DNS wordlist' not in cp.stdout
+    assert '[info] Generating PCFG DNS wordlist' not in cp.stdout
+    assert '[long]' not in cp.stdout
 
 def test_opentaal_sparse_checkout_uses_leading_slash():
     text=Path('scripts/bootstrap.sh').read_text()

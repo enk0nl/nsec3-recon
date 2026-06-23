@@ -171,11 +171,32 @@ def test_arm_stats_numeric_formatting():
     out=_render_text(s)
     assert '1.23' in out and '3.5s' in out
 
-def test_arm_stats_limits_rows_and_reports_more():
+def test_arm_table_uses_available_vertical_space():
+    from nsec3_recon.ui.widgets import _build_arm_panel
+    from rich.console import Console
     s=DashboardState('example.nl','/tmp/ws')
     for i in range(12): s.update_slice({'slice_index':i+1,'arm':f'arm-{i}','new':i,'reward':float(i),'runtime_seconds':1.0})
-    out=_render_text(s)
+    console=Console(record=True, width=160, color_system=None)
+    console.print(_build_arm_panel(s, max_rows=12))
+    out=console.export_text()
+    for i in range(12): assert f'arm-{i}' in out
+    assert 'more arms' not in out
+
+def test_arm_table_more_footer_only_when_hidden():
+    from nsec3_recon.ui.widgets import _build_arm_panel
+    from rich.console import Console
+    s=DashboardState('example.nl','/tmp/ws')
+    for i in range(12): s.update_slice({'slice_index':i+1,'arm':f'arm-{i}','new':i,'reward':float(i),'runtime_seconds':1.0})
+    console=Console(record=True, width=160, color_system=None); console.print(_build_arm_panel(s, max_rows=8)); out=console.export_text()
     assert '+4 more arms' in out
+    console=Console(record=True, width=160, color_system=None); console.print(_build_arm_panel(s, max_rows=12)); out=console.export_text()
+    assert 'more arms' not in out
+
+def test_arm_table_max_rows_increases_with_terminal_height():
+    from nsec3_recon.ui.widgets import compute_arm_table_max_rows
+    assert compute_arm_table_max_rows(50) > 8
+    assert compute_arm_table_max_rows(40) > 8
+    assert compute_arm_table_max_rows(34) == 8
 
 def test_discovered_names_have_timestamps():
     s=DashboardState('example.nl','/tmp/ws'); s.current_potfile_path='/tmp/ws/scheduler/run.pot'; s.add_discovered_names(['api'], source='nsec3', method='hashcat_potfile')
@@ -737,19 +758,25 @@ def test_scheduler_record_key_uses_job_prefix_consistently():
     r=normalize_scheduler_record({'job_id':1,'phase':'warmup','arm':'dict/seclists','shared_new_cracks':105})
     assert r.data['record_key'] == 'job:1'
 
-def test_parse_osint_subfinder_ready_line():
+def test_parse_osint_subfinder_ready_from_stdout():
     from nsec3_recon.ui.scheduler_parser import parse_osint_status_line
-    d=parse_osint_status_line('[osint] osint/subfinder completed status=ready raw=123 candidates=76 wordlist=/tmp/subfinder.txt')
+    d=parse_osint_status_line('[osint] osint/subfinder completed status=ready raw=627 candidates=627 wordlist=/tmp/subfinder.txt')
     assert d['arm']=='osint/subfinder' and d['tool']=='subfinder' and d['status']=='ready'
-    assert d['raw_count']==123 and d['candidate_count']==76
+    assert d['raw_count']==627 and d['candidate_count']==627 and d['wordlist']=='/tmp/subfinder.txt'
 
-def test_parse_osint_amass_exhausted_line():
+def test_parse_osint_amass_ready_from_stdout():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_status_line
+    d=parse_osint_status_line('[osint] osint/amass completed status=ready raw=157 candidates=156 wordlist=/tmp/candidates.txt')
+    assert d['arm']=='osint/amass' and d['tool']=='amass' and d['status']=='ready'
+    assert d['raw_count']==157 and d['candidate_count']==156 and d['wordlist']=='/tmp/candidates.txt'
+
+def test_parse_osint_exhausted_from_stdout():
     from nsec3_recon.ui.scheduler_parser import parse_osint_status_line
     d=parse_osint_status_line('[osint] osint/amass completed status=exhausted raw=0 candidates=0 reason=no_candidates')
     assert d['arm']=='osint/amass' and d['tool']=='amass' and d['status']=='exhausted'
     assert d['raw_count']==0 and d['candidate_count']==0 and d['reason']=='no_candidates'
 
-def test_parse_osint_failed_line():
+def test_parse_osint_failed_from_stdout():
     from nsec3_recon.ui.scheduler_parser import parse_osint_status_line
     d=parse_osint_status_line('[osint] osint/amass completed status=failed exit_code=1 reason=timeout')
     assert d['status']=='failed' and d['exit_code']==1 and d['reason']=='timeout'
@@ -758,20 +785,51 @@ def test_osint_completion_updates_recent_activity():
     s=DashboardState('example.nl','/tmp/ws')
     s.update_osint_status({'type':'osint_status','arm':'osint/subfinder','status':'ready','candidate_count':76})
     text='\n'.join(a['message'] for a in s.recent_activity)
-    assert 'osint/subfinder completed' in text and '76 candidate names ready' in text
+    assert '[osint] subfinder completed' in text and '76 candidate names ready' in text
 
 def test_osint_exhausted_updates_recent_activity():
     s=DashboardState('example.nl','/tmp/ws')
     s.update_osint_status({'type':'osint_status','arm':'osint/amass','status':'exhausted','candidate_count':0})
-    assert 'osint/amass exhausted' in '\n'.join(a['message'] for a in s.recent_activity)
+    assert '[osint] amass exhausted' in '\n'.join(a['message'] for a in s.recent_activity)
 
 def test_osint_completion_not_repeated():
     s=DashboardState('example.nl','/tmp/ws'); ev={'type':'osint_status','arm':'osint/subfinder','status':'ready','candidate_count':76}
     s.update_osint_status(ev); s.update_osint_status(ev)
-    assert sum('osint/subfinder completed' in a['message'] for a in s.recent_activity)==1
+    assert sum('[osint] subfinder completed' in a['message'] for a in s.recent_activity)==1
 
 def test_osint_candidate_names_not_added_to_discovered_names():
     s=DashboardState('example.nl','/tmp/ws')
     before=s.discovered_names_count
     s.update_osint_status({'type':'osint_status','arm':'osint/subfinder','status':'ready','candidate_count':76})
     assert s.discovered_names_count == before
+
+
+def test_parse_osint_ignores_non_osint_lines():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_status_line
+    assert parse_osint_status_line('[6/150] adaptive osint/subfinder reason=first_run_ready new=69 runtime=1.0s') is None
+
+def test_osint_completion_uses_candidate_names_ready_not_discovered_names():
+    s=DashboardState('example.nl','/tmp/ws')
+    s.update_osint_status({'type':'osint_status','arm':'osint/subfinder','tool':'subfinder','status':'ready','candidate_count':627})
+    text='\n'.join(a['message'] for a in s.recent_activity)
+    assert 'candidate names ready' in text
+    assert 'discovered names' not in text
+
+def test_osint_amass_completion_from_stdout_log(tmp_path):
+    from nsec3_recon.ui.rich_dashboard import RichDashboard
+    sched=tmp_path/'scheduler'; sched.mkdir()
+    (sched/'stdout.log').write_text('[osint] osint/amass completed status=ready raw=157 candidates=156 wordlist=/tmp/candidates.txt\n')
+    d=RichDashboard('example.nl', tmp_path, potfile_poll_interval_seconds=0)
+    d.poll_external_sources()
+    text='\n'.join(a['message'] for a in d.state.recent_activity)
+    assert '[osint] amass completed: 156 candidate names ready' in text
+
+def test_osint_completion_dedupes_event_stream_and_stdout_log(tmp_path):
+    from nsec3_recon.events import PipelineEvent
+    from nsec3_recon.ui.rich_dashboard import RichDashboard
+    line='[osint] osint/subfinder completed status=ready raw=627 candidates=627 wordlist=/tmp/candidates.txt'
+    sched=tmp_path/'scheduler'; sched.mkdir(); (sched/'stdout.log').write_text(line+'\n')
+    d=RichDashboard('example.nl', tmp_path, potfile_poll_interval_seconds=0)
+    d.handle_event(PipelineEvent('now','scheduler','info','stdout',line,{}))
+    d.poll_external_sources()
+    assert sum('[osint] subfinder completed' in a['message'] for a in d.state.recent_activity)==1

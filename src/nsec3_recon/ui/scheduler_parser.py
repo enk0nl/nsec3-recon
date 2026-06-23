@@ -76,50 +76,31 @@ def _first(record, *keys):
 
 def parse_osint_status_line(line: str) -> dict | None:
     text = (line or '').strip()
-    if 'completed' not in text or not any(arm in text for arm in ('osint/subfinder', 'osint/amass')):
+    if not text.startswith('[osint]') or ' completed' not in text:
         return None
-    arm = 'osint/subfinder' if 'osint/subfinder' in text else 'osint/amass'
-    tool = arm.rsplit('/', 1)[-1]
-    kv = {mm.group('key'): mm.group('value') for mm in _PAIR_RE.finditer(text)}
-    status = kv.get('status')
-    if status not in {'ready', 'exhausted', 'failed'}:
-        status = 'failed' if ' failed' in text else ('exhausted' if ' exhausted' in text else ('ready' if ' ready' in text else status))
-    return {
-        'type': 'osint_status',
-        'arm': arm,
-        'tool': tool,
-        'status': status,
-        'raw_count': _to_int(_first(kv, 'raw', 'raw_count')),
-        'candidate_count': _to_int(_first(kv, 'candidates', 'candidate_count')),
-        'exit_code': _to_int(kv.get('exit_code')),
-        'reason': kv.get('reason'),
-        'wordlist': kv.get('wordlist'),
-        'raw': text,
-        'source': 'stdout',
-    }
-
-def normalize_osint_status_record(record: dict) -> dict | None:
-    if not isinstance(record, dict):
+    arm_match = re.search(r'\b(?P<arm>osint/(?:subfinder|amass))\b', text)
+    if not arm_match:
         return None
-    event = record.get('event')
-    arm = _first(record, 'arm', 'arm_name')
-    if event != 'osint_completed' and not (arm in {'osint/subfinder', 'osint/amass'} and record.get('status') in {'ready','exhausted','failed'}):
+    try:
+        arm = arm_match.group('arm')
+        tool = arm.rsplit('/', 1)[-1]
+        kv_text = text.split(' completed', 1)[1]
+        kv = {mm.group('key'): mm.group('value') for mm in _PAIR_RE.finditer(kv_text)}
+        return {
+            'type': 'osint_status',
+            'arm': arm,
+            'tool': tool,
+            'status': kv.get('status'),
+            'raw_count': _to_int(_first(kv, 'raw', 'raw_count')),
+            'candidate_count': _to_int(_first(kv, 'candidates', 'candidate_count')),
+            'exit_code': _to_int(kv.get('exit_code')),
+            'reason': kv.get('reason'),
+            'wordlist': kv.get('wordlist'),
+            'raw': text,
+            'source': 'stdout',
+        }
+    except Exception:
         return None
-    if arm not in {'osint/subfinder', 'osint/amass'}:
-        return None
-    return {
-        'type': 'osint_status',
-        'arm': arm,
-        'tool': str(arm).rsplit('/', 1)[-1],
-        'status': record.get('status'),
-        'raw_count': _to_int(_first(record, 'raw_count', 'raw')),
-        'candidate_count': _to_int(_first(record, 'candidate_count', 'candidates')),
-        'exit_code': _to_int(record.get('exit_code')),
-        'reason': record.get('reason'),
-        'wordlist': record.get('wordlist'),
-        'raw_record': record,
-        'source': 'jobs_jsonl',
-    }
 
 def normalize_scheduler_record(record: dict) -> SchedulerParseResult | None:
     """Normalize scheduler jobs.jsonl records into dashboard slice data.

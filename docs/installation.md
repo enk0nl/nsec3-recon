@@ -257,7 +257,7 @@ If Debian/Ubuntu apt provides an older Go version, install Go from the upstream 
 
 SecLists is sparse-checked out with only `Discovery/DNS`. Asset preparation extracts `subdomains-top1million-full.7z` to a temporary directory, removes the prevalence/count column from the extracted archive, and passes the cleaned output as an extra input to the external-sort combiner.
 
-SecLists combining can take several minutes and may use significant temporary disk space. PCFG top 100M generation can take a long time and creates a large file; pass `--skip-pcfg` to skip PCFG generation when bootstrapping.
+`[info] Preparing SecLists DNS wordlist` is printed before work starts. SecLists combining can take several minutes and may use significant temporary disk space. `[info] Generating PCFG DNS wordlist` is printed before work starts. PCFG top 100M generation can take a long time and creates a large file; pass `--skip-pcfg` to skip PCFG generation when bootstrapping.
 
 The combiner reads all Discovery/DNS `*.txt` files plus the cleaned `subdomains-top1million-full.7z` output, emits both original FQDN-like candidates and labels split on dots, and frequency-sorts the result using GNU `sort` and `uniq`.
 
