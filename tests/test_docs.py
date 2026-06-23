@@ -123,3 +123,84 @@ def test_docs_explain_model_asset_preparation():
     assert 'deps/src/nsec3-candidate-scheduler/models' in text
     assert 'assets/models' in text
     assert 'scripts/prepare-models.sh' in text
+
+def test_docs_document_dashboard_modes():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert '--dashboard auto|rich|plain|off' in text
+
+def test_docs_do_not_mention_no_tui():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert '--no-tui' not in text
+
+def test_no_current_slice_label_in_docs():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert 'Current slice' not in text and 'current/previous slice' not in text
+
+def test_docs_explain_last_completed_slice_semantics():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert 'scheduler slice lines are emitted after completion' in text.lower()
+    assert 'Last completed slice' in text and 'Previous completed slice' in text
+
+def test_docs_use_discovered_names_terminology():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert 'Discovered names' in text
+    assert 'Recovered candidates' not in text and 'recovered candidates' not in text
+
+def test_docs_explain_arm_table_columns():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert 'R = latest reward' in text
+    assert 'Score = latest scheduler score' in text
+
+def test_docs_explain_total_vs_global_total():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert 'sum of per-slice `new` values' in text
+    assert 'scheduler line field `total` is the global discovered/cracked total' in text
+
+def test_docs_explain_warmup_included_in_arm_total():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert 'warm-up slices are included in arm Total' in text
+
+def test_docs_explain_jobs_jsonl_dashboard_source():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert 'scheduler/jobs.jsonl' in text and 'stdout parsing remains a live fallback' in text
+
+def test_docs_do_not_show_nsec3_as_per_row_discovered_name_column():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert '07:12:02  nsec3' not in text
+
+def test_docs_explain_jobs_jsonl_warmup_fields():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    for token in ('shared_new_cracks','new_cracks','reward_used_for_score','phase=warmup'):
+        assert token in text
+
+def test_docs_explain_discovery_sources():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert '`axfr`, `nsec`, and `nsec3`' in text
+
+def test_docs_do_not_call_run_pot_a_discovery_source():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert 'run.pot` is an artifact file, not a discovery source label' in text
+
+def test_docs_explain_slice_index_and_global_total():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert '`18/150` is the job or slice index out of configured scheduler total slices' in text
+    assert '`total=218` inside slice details is the global cracked-hash count' in text
+
+def test_docs_explain_nsec3_hash_progress():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert 'cracked hashes / total hashes' in text and 'hashcatify `hash_count`' in text

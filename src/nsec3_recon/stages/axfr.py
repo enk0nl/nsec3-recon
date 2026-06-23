@@ -11,6 +11,8 @@ def run(ctx):
             (ctx.workspace.root/'axfr/names.txt').write_text('\n'.join(names)+'\n')
             res={'domain':ctx.config.domain,'supported':True,'successful_nameserver':ns['name'],'zone_file':'axfr/zone.txt','names_file':'axfr/names.txt','name_count':len(names)}
             ctx.workspace.write_json('axfr/result.json', res); ctx.state['axfr']=res
+            ctx.state['discovered_names']={'total':len(names),'by_source':{'axfr':len(names)}}
+            ctx.events.emit('discovery','names_discovered', f'{len(names)} names discovered via AXFR', data={'source':'axfr','method':'zone_transfer','count':len(names),'names':names[-200:]})
             ctx.events.emit('axfr','completed','AXFR succeeded', data=res); return res
         except Exception as e:
             attempts.append({'nameserver':ns.get('name','?'),'status':'refused','error':str(e)})

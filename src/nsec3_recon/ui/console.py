@@ -6,6 +6,9 @@ SUPPRESSED_SUCCESS_EVENTS = {
     "tool_version_ok",
     "model_assets_ok",
     "path_check_ok",
+    "scheduler_model_assets_ok",
+    "scheduler_tool_preflight_ok",
+    "tool_preflight_ok",
 }
 
 class ConsoleEventPrinter:

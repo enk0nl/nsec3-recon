@@ -8,7 +8,8 @@ def build_parser():
     p = argparse.ArgumentParser(prog="nsec3-recon", description="NSEC3 Recon")
     p.add_argument("domain", nargs="?")
     p.add_argument("--out-dir")
-    p.add_argument("--no-tui", action="store_true")
+    p.add_argument("--dashboard", choices=("auto", "rich", "plain", "off"), default="auto", help="live UI mode (default: auto)")
+    p.add_argument("--dashboard-refresh-rate", type=float, default=2.0, help="Rich dashboard refreshes per second (default: 2.0)")
     p.add_argument("--total-slices", type=int, default=150)
     p.add_argument("--slice-seconds", type=int, default=15)
     p.add_argument("--schedule", default="adaptive")
@@ -37,7 +38,8 @@ def main(argv=None):
         cfg = PipelineConfig(
             domain=args.domain,
             out_dir=Path(args.out_dir) if args.out_dir else None,
-            tui=(not args.no_tui and sys.stdout.isatty()),
+            dashboard=args.dashboard,
+            dashboard_refresh_rate=args.dashboard_refresh_rate,
             total_slices=args.total_slices,
             slice_seconds=args.slice_seconds,
             schedule=args.schedule,
@@ -61,6 +63,9 @@ def main(argv=None):
             if completed == 'not_dnssec':
                 print('Reason: nsec3map detect-only did not report NSEC or NSEC3')
         print(f"Summary: {ctx.workspace.root/'reports/summary.json'}")
+        discovered = getattr(getattr(ctx, 'dashboard_controller', None), 'state', None)
+        if discovered is not None:
+            print(f"Discovered names: {discovered.discovered_names_count}")
         return 0
     except (ValueError, PipelineError) as e:
         print(f"error: {e}", file=sys.stderr)

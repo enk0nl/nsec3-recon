@@ -4,8 +4,8 @@ from nsec3_recon.pipeline import Pipeline, PipelineError
 from nsec3_recon.config import PipelineConfig
 
 
-def pipe(tmp_path, tui=False):
-    return Pipeline(PipelineConfig('example.nl', out_dir=tmp_path/'run', tui=tui))
+def pipe(tmp_path, dashboard="plain"):
+    return Pipeline(PipelineConfig('example.nl', out_dir=tmp_path/'run', dashboard=dashboard))
 
 
 def test_dnssec_probe_false_does_not_skip_nsec3map_detect(monkeypatch,tmp_path):
@@ -70,7 +70,7 @@ def test_stage_failure_writes_failed_summary(monkeypatch,tmp_path):
     assert json.loads((tmp_path/'run/reports/summary.json').read_text())['completed_via']=='failed'
 
 
-def test_pipeline_prints_progress_in_no_tui_mode(monkeypatch,tmp_path,capsys):
+def test_pipeline_prints_progress_in_plain_mode(monkeypatch,tmp_path,capsys):
     from nsec3_recon.stages import dns_probe, axfr, nsec3map_stage
     def fake_dns(ctx):
         ctx.events.emit('dns_probe','completed','DNS probe completed')
@@ -98,12 +98,16 @@ def test_pipeline_prints_final_summary_path(monkeypatch,tmp_path,capsys):
     monkeypatch.setattr(dns_probe,'run',lambda ctx: ctx.state.update(dnssec={'probe_dnssec_enabled':False}, nameservers=[]) or ctx.state['dnssec'])
     monkeypatch.setattr(axfr,'run',lambda ctx: ctx.state.update(axfr={'supported':False}) or ctx.state['axfr'])
     monkeypatch.setattr(nsec3map_stage,'detect',lambda ctx: ctx.state.update(nsec3map_detect={'status':'not_dnssec','zone_type':'none'}) or ctx.state['nsec3map_detect'])
-    assert main(['example.nl','--out-dir',str(tmp_path/'run'),'--no-tui']) == 0
+    assert main(['example.nl','--out-dir',str(tmp_path/'run'),'--dashboard','plain']) == 0
     out=capsys.readouterr().out
     assert 'Completed via:' in out and 'reports/summary.json' in out and 'Workspace:' in out
 
 
-def test_tui_falls_back_to_console_if_dashboard_not_implemented(monkeypatch,tmp_path,capsys):
+def test_rich_falls_back_to_console_if_dashboard_not_implemented(monkeypatch,tmp_path,capsys):
+    import nsec3_recon.pipeline as pipeline_mod
+    class BadDashboard:
+        def __init__(self, *args, **kwargs): raise RuntimeError("dashboard unavailable")
+    monkeypatch.setattr(pipeline_mod, "RichDashboard", BadDashboard)
     from nsec3_recon.stages import dns_probe, axfr, nsec3map_stage
     def fake_dns(ctx):
         ctx.events.emit('dns_probe','completed','DNS probe completed')
@@ -112,7 +116,7 @@ def test_tui_falls_back_to_console_if_dashboard_not_implemented(monkeypatch,tmp_
     monkeypatch.setattr(dns_probe,'run',fake_dns)
     monkeypatch.setattr(axfr,'run',lambda ctx: ctx.state.update(axfr={'supported':False}) or ctx.state['axfr'])
     monkeypatch.setattr(nsec3map_stage,'detect',lambda ctx: ctx.state.update(nsec3map_detect={'status':'not_dnssec','zone_type':'none'}) or ctx.state['nsec3map_detect'])
-    pipe(tmp_path, tui=True).run()
+    pipe(tmp_path, dashboard="rich").run()
     assert '[dns_probe]' in capsys.readouterr().out
 
 
