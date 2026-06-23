@@ -69,13 +69,12 @@ def _build_arm_panel(state, max_rows=None):
     row_limit = max(1, int(row_limit))
     def arm_sort_key(a):
         score = a.last_score if a.last_score is not None else float('-inf')
-        exhausted_seen = a.last_seen_slice if a.last_seen_slice is not None else -1
-        return (not a.active, bool(getattr(a, 'exhausted', False)), -a.total_new, -(exhausted_seen if getattr(a, 'exhausted', False) else score), -a.run_count)
+        return (bool(getattr(a, 'exhausted', False)), -score, -a.total_new, -a.last_reward, -a.run_count, a.name)
     sorted_arms=sorted(state.arm_stats.values(), key=arm_sort_key)
     visible_arms = sorted_arms[:row_limit]
     for a in visible_arms:
         arm_name = shorten_middle(a.name, 30)
-        if a.active: arm_name = '▶ ' + arm_name
+        if a.name == getattr(state, 'last_scheduled_arm', None): arm_name = '▶ ' + arm_name
         row_style = 'dim' if getattr(a, 'exhausted', False) and not a.active else None
         arms.add_row(arm_name, str(a.run_count), str(a.total_new), str(a.last_new), _fmt_float(a.last_reward), _fmt_float(a.last_score), _fmt_runtime(a.avg_runtime), str(a.last_seen_slice or '-'), style=row_style)
     if not sorted_arms:

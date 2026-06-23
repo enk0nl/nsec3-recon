@@ -58,6 +58,7 @@ class DashboardState:
         self.scheduler_total_slices=scheduler_total_slices
         self.completed_slices_by_key={}; self.completed_slice_order=[]; self.processed_scheduler_records={}
         self.nsec3_hash_total=0; self.nsec3_hash_cracked=0; self.latest_stdout_slice_debug=None
+        self.last_scheduled_arm=None
         self.osint_status={}; self.emitted_osint_status_events=set()
     @property
     def recovered_candidates(self): return self.discovered_names_recent
@@ -119,13 +120,24 @@ class DashboardState:
     def update_osint_status(self, data):
         if not data or data.get('type') != 'osint_status':
             return False
-        arm=data.get('arm') or 'osint/unknown'; status=data.get('status') or 'unknown'
+        arm=data.get('arm') or 'osint/unknown'; event=data.get('event') or 'completed'; status=data.get('status') or ('running' if event == 'started' else 'unknown')
         tool=data.get('tool') or str(arm).rsplit('/', 1)[-1]
         current=self.osint_status.setdefault(tool, {'started_at': None, 'completed_at': None})
-        current.update({k: data.get(k) for k in ('tool','status','raw_count','candidate_count','exit_code','reason','wordlist') if k in data})
+        terminal_status = current.get('status') in {'ready','exhausted','failed'}
+        if event == 'started':
+            key=(arm,'started')
+            if terminal_status:
+                return False
+            if key in self.emitted_osint_status_events:
+                return False
+            current.update({'tool': tool, 'status': 'running', 'started_at': current.get('started_at') or datetime.now().strftime('%H:%M:%S')})
+            self.emitted_osint_status_events.add(key)
+            self.add_activity(self._format_osint_status_activity(data), 'info')
+            return True
+        current.update({k: data.get(k) for k in ('tool','status','raw_count','candidate_count','rejected_count','exit_code','reason','wordlist','raw_names') if k in data})
         if status in {'ready','exhausted','failed'}:
             current['completed_at']=datetime.now().strftime('%H:%M:%S')
-        key=(arm,status,data.get('raw_count'),data.get('candidate_count'),data.get('exit_code'),data.get('reason'),data.get('wordlist'))
+        key=(arm,'completed',status,data.get('raw_count'),data.get('candidate_count'),data.get('rejected_count'),data.get('reason'),data.get('wordlist'),data.get('raw_names'),data.get('exit_code'))
         if key in self.emitted_osint_status_events:
             return False
         self.emitted_osint_status_events.add(key)
@@ -134,7 +146,9 @@ class DashboardState:
 
     def _format_osint_status_activity(self, data):
         arm=data.get('arm') or 'osint/unknown'; tool=data.get('tool') or str(arm).rsplit('/', 1)[-1]
-        status=data.get('status') or 'completed'; count=data.get('candidate_count')
+        event=data.get('event') or 'completed'; status=data.get('status') or ('running' if event == 'started' else 'completed'); count=data.get('candidate_count')
+        if event == 'started':
+            return f"[osint] {tool} started"
         if status == 'failed':
             parts=[]
             if data.get('exit_code') is not None: parts.append(f"exit_code={data.get('exit_code')}")
@@ -183,6 +197,7 @@ class DashboardState:
         self.completed_slices_by_key[key]=record; self.completed_slice_order.append(key)
         self._recompute_last_previous(); self.slice_history.append(record); self.scheduler_started=True
         arm=record.get('arm') or 'unknown'
+        self.last_scheduled_arm=arm
         for a in self.arm_stats.values(): a.active=False
         st=self.arm_stats.setdefault(arm, ArmStats(arm)); st.active=True; st.run_count+=1
         st.last_seen_slice=record.get('slice_index') or record.get('job_id'); st.last_reason=record.get('reason'); st.last_phase=record.get('phase')

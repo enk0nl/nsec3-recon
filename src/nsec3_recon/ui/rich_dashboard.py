@@ -2,7 +2,7 @@ from __future__ import annotations
 import json, threading, time
 from pathlib import Path
 from .dashboard_state import DashboardState
-from .scheduler_parser import normalize_scheduler_record, parse_osint_status_lines, parse_scheduler_line
+from .scheduler_parser import normalize_scheduler_record, parse_osint_events, parse_scheduler_line
 from .widgets import build_dashboard
 from ..adapters.potfile import PotfileTail
 
@@ -88,7 +88,7 @@ class RichDashboard:
         with self._lock:
             self.state.handle_event(event)
             if event.stage=='scheduler' and event.event=='stdout':
-                osint_events=parse_osint_status_lines(event.message)
+                osint_events=parse_osint_events(event.message)
                 for osint in osint_events:
                     if self.state.update_osint_status(osint):
                         self._dirty=True
@@ -119,7 +119,7 @@ class RichDashboard:
                     break
         if self._stdout_tail:
             for chunk in self._stdout_tail.poll():
-                for osint in parse_osint_status_lines(chunk):
+                for osint in parse_osint_events(chunk):
                     if self.state.update_osint_status(osint): self._dirty=True
         if self._tail is None:
             path=self.state.current_potfile_path or discover_potfile(self.state.workspace)

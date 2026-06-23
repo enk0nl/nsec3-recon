@@ -912,3 +912,94 @@ def test_exhausted_arm_keeps_stats():
     console=Console(record=True, width=160, color_system=None); console.print(_build_arm_panel(s, max_rows=4)); out=console.export_text()
     for token in ('dict/exhausted','1','3','2.50','1.25','4.0s','7'):
         assert token in out
+
+def test_parse_osint_amass_exhausted_with_rejected_and_raw_names():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_events
+    d=parse_osint_events('[osint] osint/amass completed status=exhausted raw=1 candidates=0 rejected=1 reason=no_candidates raw_names=/tmp/raw_names.txt')[0]
+    assert d['event']=='completed' and d['tool']=='amass' and d['status']=='exhausted'
+    assert d['raw_count']==1 and d['candidate_count']==0 and d['rejected_count']==1
+    assert d['reason']=='no_candidates' and d['raw_names']=='/tmp/raw_names.txt'
+
+def test_osint_amass_exhausted_updates_recent_activity():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_events
+    s=DashboardState('example.nl','/tmp/ws')
+    s.update_osint_status(parse_osint_events('[osint] osint/amass completed status=exhausted raw=1 candidates=0 rejected=1 reason=no_candidates raw_names=/tmp/raw_names.txt')[0])
+    text='\n'.join(a['message'] for a in s.recent_activity)
+    assert '[osint] amass exhausted: no candidate names' in text
+    assert 'raw_names=' not in text and '/tmp/raw_names.txt' not in text
+
+def test_osint_ready_updates_recent_activity():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_events
+    s=DashboardState('example.nl','/tmp/ws')
+    s.update_osint_status(parse_osint_events('[osint] osint/subfinder completed status=ready raw=627 candidates=627 wordlist=/tmp/candidates.txt')[0])
+    assert '[osint] subfinder completed: 627 candidate names ready' in '\n'.join(a['message'] for a in s.recent_activity)
+
+def test_osint_lifecycle_four_updates():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_events
+    s=DashboardState('example.nl','/tmp/ws')
+    chunk='[osint] osint/subfinder started subfinder for example.nl [osint] osint/amass started amass enum for example.nl [osint] osint/subfinder completed status=ready raw=627 candidates=627 wordlist=/tmp/candidates.txt [osint] osint/amass completed status=exhausted raw=1 candidates=0 rejected=1 reason=no_candidates raw_names=/tmp/raw_names.txt'
+    for ev in parse_osint_events(chunk):
+        s.update_osint_status(ev)
+    messages=[a['message'] for a in s.recent_activity]
+    assert messages == ['[osint] subfinder started','[osint] amass started','[osint] subfinder completed: 627 candidate names ready','[osint] amass exhausted: no candidate names']
+
+def test_raw_osint_line_not_added_when_parsed():
+    from nsec3_recon.events import PipelineEvent
+    from nsec3_recon.ui.rich_dashboard import RichDashboard
+    d=RichDashboard('example.nl','/tmp/ws')
+    line='[osint] osint/subfinder completed status=ready raw=627 candidates=627 wordlist=/tmp/candidates.txt'
+    d.handle_event(PipelineEvent('now','scheduler','info','stdout',line,{}))
+    text='\n'.join(a['message'] for a in d.state.recent_activity)
+    assert '[osint] subfinder completed: 627 candidate names ready' in text
+    assert 'status=ready raw=' not in text and 'wordlist=' not in text and 'raw_names=' not in text
+
+def test_arm_table_shows_all_arms_when_count_fits_default():
+    out=_render_arm_panel_with_scores([(f'arm_{i}', float(i), False) for i in range(12)])
+    for i in range(12): assert f'arm_{i}' in out
+    assert 'more arms' not in out
+
+def test_arm_table_footer_only_when_hidden():
+    out=_render_arm_panel_with_scores([(f'arm_{i}', float(i), False) for i in range(18)], max_rows=14)
+    assert '+4 more arms' in out
+    out=_render_arm_panel_with_scores([(f'arm_{i}', float(i), False) for i in range(12)], max_rows=14)
+    assert 'more arms' not in out
+
+def test_arm_table_does_not_reserve_footer_when_no_hidden_arms():
+    out=_render_arm_panel_with_scores([(f'arm_{i}', float(i), False) for i in range(12)], max_rows=12)
+    assert 'more arms' not in out
+
+def test_arm_table_sorts_non_exhausted_by_score_desc():
+    out=_render_arm_panel_with_scores([('arm_a',0.5,False),('arm_b',3.0,False),('arm_c',1.2,False)])
+    assert out.index('arm_b') < out.index('arm_c') < out.index('arm_a')
+
+def test_arm_table_groups_exhausted_after_non_exhausted_by_score():
+    out=_render_arm_panel_with_scores([('active_low',0.1,False),('exhausted_high',9.9,True)])
+    assert out.index('active_low') < out.index('exhausted_high')
+
+def test_exhausted_arms_sorted_by_score_within_exhausted_group():
+    out=_render_arm_panel_with_scores([('exhausted_1',1.0,True),('exhausted_4',4.0,True),('exhausted_2',2.0,True)])
+    assert out.index('exhausted_4') < out.index('exhausted_2') < out.index('exhausted_1')
+
+def test_arrow_marks_last_scheduled_arm_not_top_row():
+    out=_render_arm_panel_with_scores([('dict/nsec_data',5.0,False),('brute/alnum-hyphen-len2-7',0.0,False)], last='brute/alnum-hyphen-len2-7')
+    assert out.index('dict/nsec_data') < out.index('brute/alnum-hyphen-len2-7')
+    assert '▶ brute/alnum-hyphen-len2-7' in out
+
+def test_last_scheduled_arm_updates_from_jobs_jsonl():
+    s=DashboardState('example.nl','/tmp/ws')
+    s.update_scheduler_job({'source':'jobs_jsonl','job_id':1,'arm':'feedback/predictive-prefix','new':1})
+    assert s.last_scheduled_arm == 'feedback/predictive-prefix'
+
+
+def _render_arm_panel_with_scores(rows, max_rows=None, last=None):
+    from nsec3_recon.ui.dashboard_state import ArmStats
+    from nsec3_recon.ui.widgets import _build_arm_panel
+    from rich.console import Console
+    s=DashboardState('example.nl','/tmp/ws')
+    for idx,(name,score,exhausted) in enumerate(rows, start=1):
+        st=ArmStats(name=name, run_count=idx, last_seen_slice=idx, total_new=idx, last_new=idx, last_reward=float(idx), last_score=score, total_runtime=float(idx), last_runtime=float(idx), exhausted=exhausted)
+        s.arm_stats[name]=st
+    s.last_scheduled_arm=last
+    console=Console(record=True, width=200, color_system=None)
+    console.print(_build_arm_panel(s, max_rows=max_rows))
+    return console.export_text()
