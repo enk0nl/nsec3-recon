@@ -12,3 +12,24 @@ class PotfileTail:
             self.seen.add(line); cand=line.rsplit(':',1)[-1]
             if cand not in out: out.append(cand)
         return out
+
+
+def extract_potfile_names(path):
+    p = Path(path)
+    names = []
+    malformed = 0
+    if not p.exists():
+        return names, malformed
+    seen = set()
+    with p.open('r', encoding='utf-8', errors='replace') as f:
+        for line in f:
+            text = line.strip()
+            if not text:
+                continue
+            if ':' not in text:
+                malformed += 1
+                continue
+            name = text.rsplit(':', 1)[-1].strip().lower().rstrip('.')
+            if name and name not in seen:
+                seen.add(name); names.append(name)
+    return names, malformed

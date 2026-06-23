@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$REPO_ROOT"
 ARCHIVE=""; ARCHIVE_SUPPLIED=0; DEPS="deps/src/SecLists"; ASSETS="assets"; KEEP_COUNTS=0
-while [[ $# -gt 0 ]]; do case "$1" in --archive) ARCHIVE="$2"; ARCHIVE_SUPPLIED=1; shift 2;; --deps-dir) DEPS="$2"; shift 2;; --assets-dir) ASSETS="$2"; shift 2;; --keep-counts) KEEP_COUNTS=1; shift;; *) echo "unknown arg $1"; exit 2;; esac; done
+while [[ $# -gt 0 ]]; do case "$1" in --archive) ARCHIVE="$2"; ARCHIVE_SUPPLIED=1; shift 2;; --deps-dir) DEPS="$2"; shift 2;; --assets-dir) ASSETS="$2"; shift 2;; --keep-counts) KEEP_COUNTS=1; shift;; *) echo "[error] unknown argument: $1"; exit 2;; esac; done
 DNS_DIR="$DEPS/Discovery/DNS"
 ARCHIVE=${ARCHIVE:-$DNS_DIR/subdomains-top1million-full.7z}
 mkdir -p "$ASSETS/wordlists"

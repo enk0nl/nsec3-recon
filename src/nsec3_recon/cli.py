@@ -23,6 +23,12 @@ def build_parser():
     p.add_argument("--subfinder-bin", default="~/go/bin/subfinder")
     p.add_argument("--assets-dir", default="assets")
     p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--dns-timeout", type=float, default=3.0, help="per DNS query timeout in seconds (default: 3.0)")
+    p.add_argument("--dns-lifetime", type=float, default=10.0, help="DNS resolver lifetime in seconds (default: 10.0)")
+    p.add_argument("--axfr-timeout", type=float, default=10.0, help="AXFR timeout in seconds (default: 10.0)")
+    osint = p.add_mutually_exclusive_group()
+    osint.add_argument("--enable-osint", dest="osint_enabled", action="store_true", default=True, help="enable scheduler OSINT arms (default; may contact external services)")
+    osint.add_argument("--disable-osint", dest="osint_enabled", action="store_false", help="disable scheduler OSINT arms and skip amass/subfinder requirements")
     p.add_argument("--verbose", action="store_true")
     return p
 
@@ -53,6 +59,10 @@ def main(argv=None):
             subfinder_bin=args.subfinder_bin,
             assets_dir=Path(args.assets_dir),
             dry_run=args.dry_run,
+            dns_timeout=args.dns_timeout,
+            dns_lifetime=args.dns_lifetime,
+            axfr_timeout=args.axfr_timeout,
+            osint_enabled=args.osint_enabled,
             verbose=args.verbose,
         )
         ctx = Pipeline(cfg).run()

@@ -33,7 +33,7 @@ class ArmStats:
     run_count: int = 0; last_seen_slice: int | None = None; last_reason: str | None = None
     total_new: int = 0; last_new: int = 0; total_reward: float = 0.0; last_reward: float = 0.0
     total_runtime: float = 0.0; last_runtime: float = 0.0; last_score: float | None = None
-    active: bool = False; exhausted: bool = False; last_queue_before: int | None = None; last_queue_after: int | None = None; last_phase: str | None = None
+    active: bool = False; exhausted: bool = False; failed: bool = False; unavailable: bool = False; availability_reason: str | None = None; last_status: str | None = None; last_queue_before: int | None = None; last_queue_after: int | None = None; last_phase: str | None = None
     score_history: deque = field(default_factory=lambda: deque(maxlen=30)); reward_history: deque = field(default_factory=lambda: deque(maxlen=30))
     @property
     def avg_new(self): return self.total_new / self.run_count if self.run_count else 0
@@ -73,7 +73,7 @@ class DashboardState:
     def add_activity(self, message, level='info'):
         if not message:
             return False
-        self.recent_activity.append({'ts': time.time(), 'level': level, 'message': str(message)[:180]})
+        self.recent_activity.append({'ts': time.time(), 'level': level, 'message': str(message)[:5000]})
         return True
     def handle_event(self, event):
         self.event_count += 1
@@ -175,6 +175,19 @@ class DashboardState:
         return self._scheduler_fallback_key(data)
     def update_scheduler_job(self, data):
         return self.update_slice(data)
+    def update_arm_status(self, data):
+        if not data or not data.get('arm'):
+            return False
+        arm=data.get('arm')
+        st=self.arm_stats.setdefault(arm, ArmStats(arm))
+        changed=False
+        for attr in ('exhausted', 'failed', 'unavailable'):
+            if data.get(attr) is not None and getattr(st, attr) != bool(data.get(attr)):
+                setattr(st, attr, bool(data.get(attr))); changed=True
+        for attr, key in (('last_reason', 'reason'), ('availability_reason', 'availability_reason'), ('last_status', 'last_status')):
+            if data.get(key) is not None and getattr(st, attr) != data.get(key):
+                setattr(st, attr, data.get(key)); changed=True
+        return changed
     def update_slice(self, data):
         if data.get('source') is not None and data.get('source') != 'jobs_jsonl':
             return False

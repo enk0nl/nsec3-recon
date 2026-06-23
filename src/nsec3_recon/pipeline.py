@@ -5,6 +5,7 @@ from .config import PipelineConfig
 from .workspace import Workspace
 from .events import EventSink
 from .report import write_summary
+from .dependency_manifest import write_dependency_manifest
 from .ui.console import ConsoleEventPrinter
 from .ui.rich_dashboard import RichDashboard, resolve_dashboard_mode
 
@@ -37,6 +38,7 @@ class Pipeline:
             print(f"Workspace: {ws.root}", flush=True)
         ev=EventSink(ws.root/'events.jsonl', listeners=listeners)
         self.ctx=PipelineContext(self.config,ws,ev,dashboard_controller=dashboard,dashboard_mode=mode)
+        write_dependency_manifest(self.ctx)
         ev.emit('preflight','workspace_created','workspace created', data={'workspace': str(ws.root)})
         return self.ctx
     def run(self):
@@ -46,7 +48,7 @@ class Pipeline:
         ctx=self.setup()
         try:
             preflight.run(ctx)
-            render_scheduler_config(ctx.config.domain, ctx.config.assets_dir, ctx.workspace.root/'config/scheduler_config.json', ctx.config.scheduler_config or ctx.config.config_template, ctx.config.amass_bin, ctx.config.subfinder_bin)
+            render_scheduler_config(ctx.config.domain, ctx.config.assets_dir, ctx.workspace.root/'config/scheduler_config.json', ctx.config.scheduler_config or ctx.config.config_template, ctx.config.amass_bin, ctx.config.subfinder_bin, ctx.config.osint_enabled)
             if ctx.config.dry_run:
                 hf=ctx.workspace.root/'nsec3map/nsec3map_hashfile.hash'; sc=ctx.workspace.root/'config/scheduler_config.json'
                 print('Planned commands:')

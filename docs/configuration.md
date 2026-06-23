@@ -38,3 +38,7 @@ Dashboard scheduler aggregation prefers `scheduler/jobs.jsonl` when available so
 The jobs.jsonl mapper treats `shared_new_cracks`, `marginal_new_cracks`, and `new_cracks` as per-slice discovery fields, prefers `reward_used_for_score` for R, accepts `phase=warmup`, and treats `total_cracks`/`total`/`total_discoveries` as global totals. Discovered-name logical sources are `axfr`, `nsec`, and `nsec3`; `run.pot` is an artifact file, not a discovery source label.
 
 Last/Previous completed slice panels show completed scheduler jobs/slices: `18/150` is the job or slice index out of configured scheduler total slices, while `total=218` inside slice details is the global cracked-hash count. NSEC3 progress uses cracked hashes / total hashes from jobs.jsonl `total_cracks` and hashcatify `hash_count`; unique discovered names are shown separately.
+
+## Production/beta controls
+
+Relevant hardening flags include `--disable-osint`, `--dns-timeout`, `--dns-lifetime`, and `--axfr-timeout`. Report artifacts are authoritative even when `--dashboard off` is used or the Rich dashboard fails. The dependency manifest is written to `config/dependency_manifest.json` and referenced from `reports/summary.json`.

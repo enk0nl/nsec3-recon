@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$REPO_ROOT"
 ASSETS=assets; DEPS=deps/src; FORCE=0; SKIP_PCFG=0; SKIP_SECLISTS=0; SKIP_MODELS=0
 while [[ $# -gt 0 ]]; do case "$1" in --assets-dir) ASSETS="$2"; shift 2;; --deps-dir) DEPS="$2"; shift 2;; --force) FORCE=1; shift;; --skip-pcfg) SKIP_PCFG=1; shift;; --skip-seclists) SKIP_SECLISTS=1; shift;; --skip-models) SKIP_MODELS=1; shift;; *) shift;; esac; done
 mkdir -p "$ASSETS/wordlists" "$ASSETS/models" "$ASSETS/generated"

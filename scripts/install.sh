@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$REPO_ROOT"
 INSTALL_SYSTEM=0; INSTALL_HASHCAT_UPSTREAM=0; INSTALL_GO_TOOLS=0; STRICT_TOOLS=0; FORCE=0
 BOOTSTRAP_ARGS=()
-while [[ $# -gt 0 ]]; do case "$1" in --install-system-packages) INSTALL_SYSTEM=1; shift;; --install-hashcat-upstream) INSTALL_HASHCAT_UPSTREAM=1; shift;; --install-go-tools) INSTALL_GO_TOOLS=1; shift;; --strict-tools) STRICT_TOOLS=1; shift;; --force) FORCE=1; shift;; --skip-pcfg|--skip-seclists|--skip-assets|--force-bootstrap) BOOTSTRAP_ARGS+=("${1/--force-bootstrap/--force}"); shift;; --deps-dir|--assets-dir|--jobs) BOOTSTRAP_ARGS+=("$1" "$2"); shift 2;; *) echo "unknown arg $1" >&2; exit 2;; esac; done
+while [[ $# -gt 0 ]]; do case "$1" in --install-system-packages) INSTALL_SYSTEM=1; shift;; --install-hashcat-upstream) INSTALL_HASHCAT_UPSTREAM=1; shift;; --install-go-tools) INSTALL_GO_TOOLS=1; shift;; --strict-tools) STRICT_TOOLS=1; shift;; --force) FORCE=1; shift;; --skip-pcfg|--skip-seclists|--skip-assets|--force-bootstrap) BOOTSTRAP_ARGS+=("${1/--force-bootstrap/--force}"); shift;; --deps-dir|--assets-dir|--jobs) BOOTSTRAP_ARGS+=("$1" "$2"); shift 2;; *) echo "[error] unknown argument: $1" >&2; exit 2;; esac; done
 apt_packages=(git python3 python3-pip python3-venv python3-dev python3-setuptools build-essential gcc libssl-dev libssl3 p7zip-full hashcat)
 install_system_packages(){
   echo "Will install Debian/Ubuntu packages: ${apt_packages[*]}"
