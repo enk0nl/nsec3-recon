@@ -190,23 +190,31 @@ class DashboardState:
                 setattr(st, attr, data.get(key)); changed=True
         return changed
     def _maybe_add_failover_activity(self, data):
-        if data.get('retry_reason') != 'optimized_kernel_failure':
+        retry_reason = data.get('retry_reason')
+        failover_reasons = {'optimized_kernel_failure', 'optimized_kernel_all_hashes_token_length'}
+        if retry_reason not in failover_reasons:
+            return False
+        retry_scheduled = data.get('retry_scheduled')
+        failover_enabled = data.get('optimized_kernel_failover_enabled')
+        if retry_scheduled is not True and not (failover_enabled is False and retry_scheduled is False):
             return False
         job_id = data.get('job_id') or data.get('retry_of_job_id') or id(data)
-        key = (job_id, data.get('retry_scheduled'), data.get('optimized_kernel_failover_enabled'))
+        key = ('optimized_kernel_failover_activity', job_id, retry_reason, retry_scheduled, failover_enabled)
         if key in self.emitted_failover_events:
             return False
         self.emitted_failover_events.add(key)
-        if data.get('retry_scheduled') is True:
-            return self.add_activity('[hashcat] optimized kernels failed; retrying with unoptimized kernels', 'warning')
-        if data.get('optimized_kernel_failover_enabled') is False or data.get('retry_scheduled') is False:
-            return self.add_activity('[hashcat] optimized kernels failed; failover disabled, continuing optimized', 'warning')
-        return False
+        if retry_scheduled is True and retry_reason == 'optimized_kernel_all_hashes_token_length':
+            return self.add_activity('[scheduler] optimized kernels failed on all hashes; retrying unoptimized', 'warning')
+        if retry_scheduled is True:
+            return self.add_activity('[scheduler] optimized kernels failed; retrying unoptimized', 'warning')
+        return self.add_activity('[scheduler] optimized kernels failed; failover disabled, continuing optimized', 'warning')
 
     def update_slice(self, data):
         if data.get('source') is not None and data.get('source') != 'jobs_jsonl':
             return False
         self._maybe_add_failover_activity(data)
+        if data.get('valid_work') is False or data.get('scored') is False:
+            return False
         record=dict(data); record.setdefault('source', 'jobs_jsonl'); key=self._scheduler_record_key(record); fallback_key=self._scheduler_fallback_key(record)
         if record.get('total_slices') is None and self.scheduler_total_slices is not None:
             record['total_slices'] = self.scheduler_total_slices
