@@ -23,7 +23,7 @@ class Pipeline:
         if mode == 'plain':
             printer=ConsoleEventPrinter(verbose=self.config.verbose); return [printer.handle_event], None, mode
         try:
-            dash=RichDashboard(self.config.domain, ws.root, refresh_per_second=self.config.dashboard_refresh_rate, scheduler_total_slices=self.config.total_slices); dash.start(); return [dash.handle_event], dash, mode
+            dash=RichDashboard(self.config.domain, ws.root, refresh_per_second=self.config.dashboard_refresh_rate, scheduler_total_slices=self.config.total_slices, verbose=self.config.verbose); dash.start(); return [dash.handle_event], dash, mode
         except Exception as exc:
             if self.config.dashboard == 'rich':
                 print(f"warning: Rich dashboard unavailable ({exc}); falling back to plain", file=sys.stderr)

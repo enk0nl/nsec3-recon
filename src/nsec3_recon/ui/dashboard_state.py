@@ -5,7 +5,7 @@ from datetime import datetime
 import time
 
 STAGES = ['preflight','dns_probe','axfr','nsec3map_detect','nsec3map_enumeration','hashcatify','scheduler','summarize']
-LOW_VALUE_EVENTS = {'workspace_created','python_deps_ok','dependency_check_ok','tool_version_ok','model_assets_ok','path_check_ok'}
+LOW_VALUE_EVENTS = {'workspace_created','python_deps_ok','dependency_check_ok','tool_version_ok','model_assets_ok','path_check_ok','scheduler_model_assets_ok','scheduler_tool_preflight_ok','tool_preflight_ok'}
 
 @dataclass
 class DiscoveredName:
@@ -42,9 +42,12 @@ class ArmStats:
     @property
     def avg_runtime(self): return self.total_runtime / self.run_count if self.run_count else 0
 
+def is_low_value_success_event(event) -> bool:
+    return event.event in LOW_VALUE_EVENTS and event.level not in {'warning', 'error'}
+
 class DashboardState:
-    def __init__(self, domain='', workspace=None, scheduler_total_slices=None):
-        self.domain=domain; self.workspace=str(workspace or ''); self.started_at=time.time(); self.current_stage='preflight'
+    def __init__(self, domain='', workspace=None, scheduler_total_slices=None, verbose: bool = False):
+        self.domain=domain; self.workspace=str(workspace or ''); self.started_at=time.time(); self.current_stage='preflight'; self.verbose=verbose
         self.completed_via=None; self.overall_status='running'; self.last_error=None
         self.warnings_count=0; self.errors_count=0; self.event_count=0
         self.stages={s: StageState(s) for s in STAGES}
@@ -54,7 +57,7 @@ class DashboardState:
         self.current_potfile_path=None; self.last_scheduler_stdout=None; self.last_scheduler_stderr=None; self.scheduler_runtime_started_at=None
         self.scheduler_total_slices=scheduler_total_slices
         self.completed_slices_by_key={}; self.completed_slice_order=[]; self.processed_scheduler_records={}
-        self.nsec3_hash_total=0; self.nsec3_hash_cracked=0
+        self.nsec3_hash_total=0; self.nsec3_hash_cracked=0; self.latest_stdout_slice_debug=None
     @property
     def recovered_candidates(self): return self.discovered_names_recent
     @property
@@ -72,6 +75,8 @@ class DashboardState:
         if event.level == 'warning': self.warnings_count += 1
         if event.level == 'error': self.errors_count += 1; self.last_error = event.message; self.overall_status='failed'
         data = getattr(event,'data',{}) or {}; stage = self._event_stage(event)
+        if is_low_value_success_event(event) and not self.verbose:
+            return
         if stage in self.stages:
             st=self.stages[stage]; st.message=event.message; st.details.update(data); self.current_stage=stage
             if event.event in ('started','detect_started') or event.event.endswith('_started'):
@@ -115,10 +120,14 @@ class DashboardState:
         if data.get('record_key'):
             return data.get('record_key')
         if data.get('job_id'):
-            return f"job_id:{data.get('job_id')}"
+            return f"job:{data.get('job_id')}"
         return self._scheduler_fallback_key(data)
+    def update_scheduler_job(self, data):
+        return self.update_slice(data)
     def update_slice(self, data):
-        record=dict(data); key=self._scheduler_record_key(record); fallback_key=self._scheduler_fallback_key(record)
+        if data.get('source') is not None and data.get('source') != 'jobs_jsonl':
+            return False
+        record=dict(data); record.setdefault('source', 'jobs_jsonl'); key=self._scheduler_record_key(record); fallback_key=self._scheduler_fallback_key(record)
         if record.get('total_slices') is None and self.scheduler_total_slices is not None:
             record['total_slices'] = self.scheduler_total_slices
         duplicate_key = key if key in self.processed_scheduler_records else (fallback_key if fallback_key in self.processed_scheduler_records else None)
@@ -142,7 +151,7 @@ class DashboardState:
         arm=record.get('arm') or 'unknown'
         for a in self.arm_stats.values(): a.active=False
         st=self.arm_stats.setdefault(arm, ArmStats(arm)); st.active=True; st.run_count+=1
-        st.last_seen_slice=record.get('slice_index'); st.last_reason=record.get('reason'); st.last_phase=record.get('phase')
+        st.last_seen_slice=record.get('slice_index') or record.get('job_id'); st.last_reason=record.get('reason'); st.last_phase=record.get('phase')
         st.last_new=record.get('new') or 0; st.total_new += st.last_new
         st.last_reward=record.get('reward') or 0.0; st.total_reward += st.last_reward; st.reward_history.append(st.last_reward)
         st.last_runtime=record.get('runtime_seconds') or 0.0; st.total_runtime += st.last_runtime

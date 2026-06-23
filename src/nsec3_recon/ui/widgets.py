@@ -21,7 +21,7 @@ def format_slice_index(slice_index, total_slices, fallback_total_slices=None):
     return f"{slice_index if slice_index is not None else '?'}/{total if total is not None else '?'}"
 
 def _slice_lines(s, fallback_total_slices=None):
-    if not s: return ['waiting for previous slice…']
+    if not s: return ['waiting for previous completed slice…']
     phase=s.get('phase') or s.get('schedule_name') or 'unknown'
     label='job' if s.get('source') == 'jobs_jsonl' or s.get('job_id') is not None else 'slice'
     lines=[f"{label} {format_slice_index(s.get('slice_index') or s.get('job_id'), s.get('total_slices'), fallback_total_slices)}  phase={phase}", f"arm={s.get('arm','?')}  reason={s.get('reason','-')}"]

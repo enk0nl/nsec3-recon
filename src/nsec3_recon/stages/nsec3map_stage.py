@@ -46,7 +46,7 @@ def ensure_python_deps(ctx):
         )
         ctx.events.emit("nsec3map", "python_deps_missing", msg, "error", obj)
         raise PipelineError("nsec3map", msg)
-    ctx.events.emit("nsec3map", "python_deps_ok", "nsec3map Python dependencies available", data={"interpreter": ctx.config.nsec3map_python})
+    ctx.events.emit("nsec3map", "python_deps_ok", "nsec3map Python dependencies available", "debug", {"interpreter": ctx.config.nsec3map_python})
     return obj
 
 

@@ -112,7 +112,7 @@ def normalize_scheduler_record(record: dict) -> SchedulerParseResult | None:
         'runtime_seconds': _to_float(_first(record, 'runtime_seconds', 'actual_runtime_seconds', 'runtime')),
         'source': 'jobs_jsonl',
         'job_id': _first(record, 'job_id', 'id', 'uuid'),
-        'record_key': f"job_id:{_first(record, 'job_id', 'id', 'uuid')}" if _first(record, 'job_id', 'id', 'uuid') is not None else None,
+        'record_key': f"job:{_first(record, 'job_id', 'id', 'uuid')}" if _first(record, 'job_id', 'id', 'uuid') is not None else None,
         'timestamp': _first(record, 'timestamp'),
         'requested_slice_seconds': _to_float(_first(record, 'requested_slice_seconds')),
         'exit_code': _first(record, 'exit_code'),

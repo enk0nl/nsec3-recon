@@ -1,3 +1,4 @@
+from pathlib import Path
 from nsec3_recon.config import PipelineConfig
 from nsec3_recon.cli import build_parser
 from nsec3_recon.ui.rich_dashboard import resolve_dashboard_mode, discover_potfile, RichDashboard
@@ -59,7 +60,8 @@ def test_recent_activity_keeps_unparsed_scheduler_messages():
 def test_scheduler_stdout_events_are_not_printed_raw_in_rich_mode(capsys):
     d=RichDashboard('example.nl')
     d.handle_event(PipelineEvent('now','scheduler','info','stdout','[1/2] adaptive a new=1',{}))
-    assert capsys.readouterr().out == '' and d.state.current_slice['slice_index']==1
+    assert capsys.readouterr().out == '' and d.state.current_slice is None
+    assert d.state.latest_stdout_slice_debug['slice_index'] == 1
 
 def test_slice_panel_labels_are_completed_slice_labels():
     s=DashboardState('example.nl','/tmp/ws'); s.scheduler_started=True
@@ -97,7 +99,8 @@ def test_parsed_scheduler_lines_do_not_go_to_recent_activity():
     d=RichDashboard('example.nl')
     raw='[75/150] adaptive predictive-prefix reason=highest_score queue=4->0 written=4 enq=2 new=1 total=184877 reward=0.167 score=0.49->0.44 runtime=6.0s'
     d.handle_event(PipelineEvent('now','scheduler','info','stdout',raw,{}))
-    assert d.state.last_completed_slice['slice_index']==75
+    assert d.state.last_completed_slice is None
+    assert d.state.latest_stdout_slice_debug['slice_index'] == 75
     assert not any(raw in a['message'] for a in d.state.recent_activity)
 
 def test_rich_mode_does_not_use_console_printer(monkeypatch,tmp_path):
@@ -269,10 +272,8 @@ def test_arm_stats_headers_use_reward_and_score():
     assert 'Avg R' not in out
 
 def test_arm_stats_score_uses_score_after():
-    from nsec3_recon.ui.scheduler_parser import parse_scheduler_line
     s=DashboardState('example.nl','/tmp/ws')
-    d=parse_scheduler_line('[1/2] adaptive arm reward=4.747 score=0.02->0.73 runtime=2.0s').data
-    s.update_slice(d)
+    s.update_slice({'source':'jobs_jsonl','slice_index':1,'arm':'arm','reward':4.747,'score_before':0.02,'score_after':0.73,'runtime_seconds':2.0})
     a=s.arm_stats['arm']
     assert a.last_reward == 4.747 and a.last_score == 0.73
     out=_render_text(s)
@@ -333,22 +334,20 @@ def test_arm_table_header_uses_total_not_new():
     assert ' New ' not in out
 
 def test_arm_total_is_sum_of_slice_new():
-    from nsec3_recon.ui.scheduler_parser import parse_scheduler_line
     s=DashboardState('example.nl','/tmp/ws')
-    for line in (
-        '[1/150] adaptive arm-a reason=x new=3 total=10 reward=1.0 score=0.1->0.2 runtime=1.0s',
-        '[2/150] adaptive arm-a reason=x new=5 total=15 reward=2.0 score=0.2->0.3 runtime=1.0s',
+    for data in (
+        {'source':'jobs_jsonl','slice_index':1,'arm':'arm-a','new':3,'total':10,'reward':1.0,'score_after':0.2,'runtime_seconds':1.0},
+        {'source':'jobs_jsonl','slice_index':2,'arm':'arm-a','new':5,'total':15,'reward':2.0,'score_after':0.3,'runtime_seconds':1.0},
     ):
-        s.update_slice(parse_scheduler_line(line).data)
+        s.update_slice(data)
     arm=s.arm_stats['arm-a']
     assert arm.total_new == 8 and arm.last_new == 5
     out=_render_text(s)
     assert '8' in out and '5' in out
 
 def test_arm_total_does_not_use_global_total_field():
-    from nsec3_recon.ui.scheduler_parser import parse_scheduler_line
     s=DashboardState('example.nl','/tmp/ws')
-    s.update_slice(parse_scheduler_line('[1/150] adaptive arm-a reason=x new=3 total=999 reward=1.0 score=0.1->0.2 runtime=1.0s').data)
+    s.update_slice({'source':'jobs_jsonl','slice_index':1,'arm':'arm-a','new':3,'total':999,'reward':1.0,'score_after':0.2})
     assert s.arm_stats['arm-a'].total_new == 3
     assert s.arm_stats['arm-a'].total_new != 999
 
@@ -461,7 +460,7 @@ def _real_warmup_record():
 def test_jobs_jsonl_normalizer_reads_real_warmup_schema():
     from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record
     d=normalize_scheduler_record(_real_warmup_record()).data
-    assert d['record_key']=='job_id:1' and d['phase']=='warmup' and d['arm']=='dict/seclists' and d['reason']=='warmup'
+    assert d['record_key']=='job:1' and d['phase']=='warmup' and d['arm']=='dict/seclists' and d['reason']=='warmup'
     assert d['new']==105 and d['global_total']==105 and d['reward']==5.603777835760706
     assert d['score_before']==0.0 and d['score_after']==0.8405666753641059 and d['runtime_seconds']==18.737359523773193
 
@@ -617,3 +616,123 @@ def test_global_total_rendered_as_total_cracks():
     s.update_slice(normalize_scheduler_record({'job_id':18,'phase':'adaptive','arm':'a','shared_new_cracks':6,'total_cracks':218}).data)
     out=_render_text(s)
     assert '18/150' in out and 'total=218' in out
+
+def test_scheduler_stdout_slice_does_not_update_completed_slices():
+    from nsec3_recon.events import PipelineEvent
+    d=RichDashboard('example.nl')
+    d.handle_event(PipelineEvent('now','scheduler','info','stdout','[4/150] warmup dict/opentaal_dutch reason=warmup new=2 total=137 reward=11.20 runtime=2.9s',{}))
+    assert d.state.last_completed_slice is None
+    assert d.state.previous_completed_slice is None
+    assert d.state.latest_stdout_slice_debug['slice_index'] == 4
+
+
+def test_scheduler_stdout_slice_does_not_update_arm_stats():
+    from nsec3_recon.events import PipelineEvent
+    d=RichDashboard('example.nl')
+    d.handle_event(PipelineEvent('now','scheduler','info','stdout','[4/150] warmup dict/opentaal_dutch reason=warmup new=2 total=137 reward=11.20 runtime=2.9s',{}))
+    assert d.state.arm_stats == {}
+
+
+def test_jobs_jsonl_record_updates_completed_slices():
+    from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record
+    s=DashboardState('example.nl','/tmp/ws', scheduler_total_slices=150)
+    assert s.update_scheduler_job(normalize_scheduler_record({'job_id':4,'phase':'warmup','arm':'dict/opentaal_dutch','shared_new_cracks':2,'total_cracks':137,'reward_used_for_score':11.2,'score_after':0.5,'runtime_seconds':2.9}).data)
+    assert s.last_completed_slice['job_id'] == 4
+    assert s.previous_completed_slice is None
+    assert s.arm_stats['dict/opentaal_dutch'].total_new == 2
+
+
+def test_stdout_then_jobs_does_not_duplicate_last_previous():
+    from nsec3_recon.events import PipelineEvent
+    from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record
+    d=RichDashboard('example.nl','/tmp/ws', scheduler_total_slices=150)
+    d.handle_event(PipelineEvent('now','scheduler','info','stdout','[4/150] warmup dict/opentaal_dutch reason=warmup new=2 total=137 reward=11.20 runtime=2.9s',{}))
+    d.state.update_scheduler_job(normalize_scheduler_record({'job_id':4,'phase':'warmup','arm':'dict/opentaal_dutch','shared_new_cracks':2,'total_cracks':137,'reward_used_for_score':11.2,'score_after':0.5,'runtime_seconds':2.9}).data)
+    assert d.state.last_completed_slice['job_id'] == 4
+    assert d.state.previous_completed_slice is None
+    assert len(d.state.completed_slice_order) == 1
+
+
+def test_two_jobs_render_distinct_last_previous():
+    from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record
+    s=DashboardState('example.nl','/tmp/ws', scheduler_total_slices=150)
+    s.update_scheduler_job(normalize_scheduler_record({'job_id':3,'phase':'warmup','arm':'a','shared_new_cracks':1}).data)
+    s.update_scheduler_job(normalize_scheduler_record({'job_id':4,'phase':'warmup','arm':'b','shared_new_cracks':2}).data)
+    assert s.previous_completed_slice['job_id'] == 3
+    assert s.last_completed_slice['job_id'] == 4
+
+
+def test_same_job_id_not_counted_twice():
+    from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record
+    s=DashboardState('example.nl','/tmp/ws')
+    data=normalize_scheduler_record({'job_id':4,'phase':'warmup','arm':'a','shared_new_cracks':2}).data
+    assert s.update_scheduler_job(data)
+    assert not s.update_scheduler_job(data)
+    assert s.arm_stats['a'].run_count == 1
+    assert s.arm_stats['a'].total_new == 2
+    assert len(s.completed_slice_order) == 1
+
+
+def test_update_slice_rejects_non_jobs_jsonl_records():
+    s=DashboardState('example.nl','/tmp/ws')
+    assert not s.update_slice({'source':'stdout','slice_index':4,'arm':'a','new':2})
+    assert s.last_completed_slice is None
+    assert s.arm_stats == {}
+
+
+def test_real_warmup_record_counts_current_schema():
+    from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record
+    s=DashboardState('example.nl','/tmp/ws')
+    s.update_scheduler_job(normalize_scheduler_record(_real_warmup_record()).data)
+    a=s.arm_stats['dict/seclists']
+    assert a.run_count == 1
+    assert a.total_new == 105 and a.last_new == 105
+    assert round(a.last_reward, 2) == 5.60
+    assert round(a.last_score, 2) == 0.84
+    assert round(a.avg_runtime, 1) == 18.7
+    assert a.last_seen_slice == 1
+
+
+def test_python_deps_ok_does_not_update_stage_message_in_normal_mode():
+    from nsec3_recon.events import PipelineEvent
+    s=DashboardState(verbose=False)
+    s.handle_event(PipelineEvent('now','nsec3map','debug','python_deps_ok','nsec3map Python dependencies available',{}))
+    assert all(st.message != 'nsec3map Python dependencies available' for st in s.stages.values())
+    assert not any('Python dependencies available' in a['message'] for a in s.recent_activity)
+
+
+def test_python_deps_ok_visible_or_processed_in_verbose_mode():
+    from nsec3_recon.events import PipelineEvent
+    s=DashboardState(verbose=True)
+    s.handle_event(PipelineEvent('now','nsec3map','debug','python_deps_ok','nsec3map Python dependencies available',{}))
+    assert s.stages['nsec3map_enumeration'].message == 'nsec3map Python dependencies available'
+
+
+def test_low_value_success_warning_still_visible():
+    from nsec3_recon.events import PipelineEvent
+    s=DashboardState(verbose=False)
+    s.handle_event(PipelineEvent('now','nsec3map','warning','python_deps_ok','warn',{}))
+    assert any('warn' in a['message'] for a in s.recent_activity)
+
+
+def test_nsec3map_stage_emits_python_deps_ok_debug():
+    text=Path('src/nsec3_recon/stages/nsec3map_stage.py').read_text()
+    assert '"python_deps_ok", "nsec3map Python dependencies available", "debug"' in text
+
+
+def test_render_does_not_show_duplicate_job_slice():
+    from nsec3_recon.events import PipelineEvent
+    from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record
+    d=RichDashboard('example.nl','/tmp/ws', scheduler_total_slices=150)
+    d.handle_event(PipelineEvent('now','scheduler','info','stdout','[4/150] warmup dict/opentaal_dutch reason=warmup new=2 total=137 reward=11.20 runtime=2.9s',{}))
+    d.state.update_scheduler_job(normalize_scheduler_record({'job_id':4,'phase':'warmup','arm':'dict/opentaal_dutch','shared_new_cracks':2,'total_cracks':137,'reward_used_for_score':11.2,'score_after':0.5,'runtime_seconds':2.9}).data)
+    out=_render_text(d.state)
+    assert out.count('job 4/150') == 1
+    assert 'slice 4/150' not in out
+    assert 'waiting for previous completed slice' in out
+
+
+def test_scheduler_record_key_uses_job_prefix_consistently():
+    from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record
+    r=normalize_scheduler_record({'job_id':1,'phase':'warmup','arm':'dict/seclists','shared_new_cracks':105})
+    assert r.data['record_key'] == 'job:1'

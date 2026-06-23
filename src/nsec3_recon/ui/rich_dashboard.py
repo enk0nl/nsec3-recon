@@ -51,8 +51,8 @@ def discover_potfile(workspace) -> Path | None:
     return None
 
 class RichDashboard:
-    def __init__(self, domain='', workspace=None, refresh_per_second=2.0, console=None, potfile_poll_interval_seconds=1.0, scheduler_total_slices=None):
-        self.state=DashboardState(domain, workspace, scheduler_total_slices=scheduler_total_slices); self.refresh_per_second=min(float(refresh_per_second), 10.0); self._lock=threading.RLock(); self._stop=threading.Event(); self._thread=None; self._live=None; self._tail=None; self._jobs_tail=None; self._dirty=True
+    def __init__(self, domain='', workspace=None, refresh_per_second=2.0, console=None, potfile_poll_interval_seconds=1.0, scheduler_total_slices=None, verbose: bool = False):
+        self.state=DashboardState(domain, workspace, scheduler_total_slices=scheduler_total_slices, verbose=verbose); self.refresh_per_second=min(float(refresh_per_second), 10.0); self._lock=threading.RLock(); self._stop=threading.Event(); self._thread=None; self._live=None; self._tail=None; self._jobs_tail=None; self._dirty=True
         self.console=console; self.potfile_poll_interval_seconds=potfile_poll_interval_seconds; self._last_potfile_poll=0.0
     def start(self):
         from rich.live import Live
@@ -80,7 +80,8 @@ class RichDashboard:
             self.state.handle_event(event)
             if event.stage=='scheduler' and event.event=='stdout':
                 parsed=parse_scheduler_line(event.message)
-                if parsed.parsed: self.state.update_slice(parsed.data)
+                if parsed.parsed:
+                    self.state.latest_stdout_slice_debug = parsed.data
                 else:
                     self.state.recent_scheduler_messages.append(parsed.data['message']); self.state.add_activity(parsed.data['message'])
             self._dirty=True
@@ -95,7 +96,7 @@ class RichDashboard:
         if self._jobs_tail:
             for record in self._jobs_tail.poll():
                 normalized=normalize_scheduler_record(record)
-                if normalized and self.state.update_slice(normalized.data): self._dirty=True
+                if normalized and self.state.update_scheduler_job(normalized.data): self._dirty=True
         if self._tail is None:
             path=self.state.current_potfile_path or discover_potfile(self.state.workspace)
             if path:
