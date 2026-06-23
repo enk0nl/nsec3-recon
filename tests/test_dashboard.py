@@ -196,7 +196,7 @@ def test_arm_table_max_rows_increases_with_terminal_height():
     from nsec3_recon.ui.widgets import compute_arm_table_max_rows
     assert compute_arm_table_max_rows(50) > 8
     assert compute_arm_table_max_rows(40) > 8
-    assert compute_arm_table_max_rows(34) == 12
+    assert compute_arm_table_max_rows(34) == 10
 
 def test_discovered_names_have_timestamps():
     s=DashboardState('example.nl','/tmp/ws'); s.current_potfile_path='/tmp/ws/scheduler/run.pot'; s.add_discovered_names(['api'], source='nsec3', method='hashcat_potfile')
@@ -1004,7 +1004,7 @@ def _render_arm_panel_with_scores(rows, max_rows=None, last=None):
     console.print(_build_arm_panel(s, max_rows=max_rows))
     return console.export_text()
 
-def test_recent_activity_renders_tail_not_head():
+def test_recent_activity_newest_first_respects_limit():
     from nsec3_recon.ui.widgets import _build_activity_panel
     from rich.console import Console
     s=DashboardState('example.nl','/tmp/ws')
@@ -1014,14 +1014,13 @@ def test_recent_activity_renders_tail_not_head():
     for i in range(11,21): assert f'message {i:02d}' in out
     for i in range(1,11): assert f'message {i:02d}' not in out
 
-def test_recent_activity_preserves_chronological_order_in_tail():
+def test_recent_activity_renders_newest_first():
     from nsec3_recon.ui.widgets import _build_activity_panel
     from rich.console import Console
     s=DashboardState('example.nl','/tmp/ws')
-    for i in range(1,21): s.add_activity(f'message {i:02d}')
-    console=Console(record=True, width=120, color_system=None); console.print(_build_activity_panel(s, max_rows=5)); out=console.export_text()
-    positions=[out.index(f'message {i:02d}') for i in range(16,21)]
-    assert positions == sorted(positions)
+    for i in range(1,5): s.add_activity(f'msg{i}')
+    console=Console(record=True, width=120, color_system=None); console.print(_build_activity_panel(s, max_rows=4)); out=console.export_text()
+    assert out.index('msg4') < out.index('msg3') < out.index('msg2') < out.index('msg1')
 
 def test_recent_activity_osint_completion_visible_after_start():
     from nsec3_recon.ui.widgets import _build_activity_panel
@@ -1033,8 +1032,7 @@ def test_recent_activity_osint_completion_visible_after_start():
     s.add_activity('[osint] subfinder completed: 627 candidate names ready')
     s.add_activity('[osint] amass exhausted: no candidate names')
     console=Console(record=True, width=140, color_system=None); console.print(_build_activity_panel(s, max_rows=4)); out=console.export_text()
-    assert '[osint] subfinder completed: 627 candidate names ready' in out
-    assert '[osint] amass exhausted: no candidate names' in out
+    assert out.index('[osint] amass exhausted: no candidate names') < out.index('[osint] subfinder completed: 627 candidate names ready')
     assert '[osint] subfinder started' not in out
 
 def test_add_activity_marks_dashboard_dirty_or_returns_true():
@@ -1069,3 +1067,74 @@ def test_exhausted_arms_grouped_at_bottom_but_visible_when_room():
     assert out.index('active_high') < out.index('exhausted_high')
     assert out.index('active_low') < out.index('exhausted_high')
     assert 'exhausted_low' in out
+
+
+def test_recent_activity_osint_completion_visible_at_top():
+    from nsec3_recon.ui.widgets import _build_activity_panel
+    from rich.console import Console
+    s=DashboardState('example.nl','/tmp/ws')
+    for msg in ('[osint] subfinder started','[osint] amass started','[osint] subfinder completed: 627 candidate names ready','[osint] amass exhausted: no candidate names'):
+        s.add_activity(msg)
+    console=Console(record=True, width=140, color_system=None); console.print(_build_activity_panel(s, max_rows=4)); out=console.export_text()
+    assert out.index('[osint] amass exhausted: no candidate names') < out.index('[osint] subfinder completed: 627 candidate names ready')
+
+
+def test_recent_activity_does_not_render_raw_osint_line():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_events
+    from nsec3_recon.ui.widgets import _build_activity_panel
+    from rich.console import Console
+    s=DashboardState('example.nl','/tmp/ws')
+    ev=parse_osint_events('[osint] osint/amass completed status=exhausted raw=1 candidates=0 rejected=1 reason=no_candidates raw_names=/tmp/raw_names.txt')[0]
+    s.update_osint_status(ev)
+    console=Console(record=True, width=140, color_system=None); console.print(_build_activity_panel(s, max_rows=2)); out=console.export_text()
+    assert '[osint] amass exhausted: no candidate names' in out
+    assert 'raw_names=' not in out and '/tmp/raw_names.txt' not in out
+
+
+def test_arm_stats_visible_rows_default_terminal_allows_12():
+    from nsec3_recon.ui.widgets import compute_arm_stats_visible_rows
+    assert compute_arm_stats_visible_rows(console_height=40) >= 12
+
+
+def test_arm_stats_small_terminal_truncates_with_footer():
+    from nsec3_recon.ui.widgets import compute_arm_stats_visible_rows
+    rows=compute_arm_stats_visible_rows(console_height=34)
+    assert rows == 10
+    out=_render_arm_panel_with_scores([(f'zoom-{i:02d}', float(i), False) for i in range(12)], max_rows=rows)
+    assert '+2 more arms' in out
+    rendered=sum(1 for i in range(12) if f'zoom-{i:02d}' in out)
+    assert rendered == 10
+
+
+def test_arm_stats_does_not_silently_clip_hidden_arms():
+    out=_render_arm_panel_with_scores([(f'clip-{i:02d}', float(i), False) for i in range(12)], max_rows=10)
+    assert '+2 more arms' in out
+
+
+def test_arm_stats_exact_fit_no_footer():
+    out=_render_arm_panel_with_scores([(f'exact-{i:02d}', float(i), False) for i in range(12)], max_rows=12)
+    for i in range(12): assert f'exact-{i:02d}' in out
+    assert 'more arms' not in out
+
+
+def test_arm_stats_overflow_footer_count_correct():
+    out=_render_arm_panel_with_scores([(f'overflow-{i:02d}', float(i), False) for i in range(15)], max_rows=12)
+    assert '+3 more arms' in out
+
+
+def test_arm_stats_footer_visible_when_terminal_zoomed():
+    from nsec3_recon.ui.widgets import compute_arm_stats_visible_rows
+    rows=compute_arm_stats_visible_rows(console_height=34)
+    out=_render_arm_panel_with_scores([(f'z-{i:02d}', float(i), False) for i in range(12)], max_rows=rows)
+    assert '+2 more arms' in out
+
+
+def test_arm_stats_sorting_score_order_preserved():
+    out=_render_arm_panel_with_scores([('score_0_5',0.5,False),('score_3_0',3.0,False),('score_1_2',1.2,False)])
+    assert out.index('score_3_0') < out.index('score_1_2') < out.index('score_0_5')
+
+
+def test_arm_stats_arrow_does_not_affect_sort():
+    out=_render_arm_panel_with_scores([('arm_A',5.0,False),('arm_B',1.0,False)], last='arm_B')
+    assert out.index('arm_A') < out.index('arm_B')
+    assert '▶ arm_B' in out

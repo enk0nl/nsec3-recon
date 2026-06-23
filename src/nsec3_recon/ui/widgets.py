@@ -46,16 +46,22 @@ def _fmt_progress(value):
     if value is None: return '–'
     return f"{value:.2f}%" if value < 1 else f"{value:.1f}%"
 
-def compute_arm_table_max_rows(terminal_height=None):
-    if terminal_height is None:
-        terminal_height = shutil.get_terminal_size(fallback=(120, 40)).lines
-    if terminal_height >= 50:
-        return 18
-    if terminal_height >= 40:
+def compute_arm_stats_visible_rows(console_height=None, layout_height=None):
+    height = layout_height if layout_height is not None else console_height
+    if height is None:
+        height = shutil.get_terminal_size(fallback=(120, 40)).lines
+    if height >= 50:
+        return 16
+    if height >= 44:
         return 14
-    if terminal_height >= 32:
+    if height >= 38:
         return 12
-    return 12
+    if height >= 32:
+        return 10
+    return 8
+
+def compute_arm_table_max_rows(terminal_height=None):
+    return compute_arm_stats_visible_rows(console_height=terminal_height)
 
 def _build_arm_panel(state, max_rows=None):
     from rich.panel import Panel
@@ -65,7 +71,7 @@ def _build_arm_panel(state, max_rows=None):
     arms.add_column('Arm', overflow='ellipsis', ratio=3, no_wrap=True)
     for col in ('Runs','Total','Last','R','Score','Avg t','Seen'):
         arms.add_column(col, justify='right', no_wrap=True)
-    row_limit = max_rows if max_rows is not None else compute_arm_table_max_rows()
+    row_limit = max_rows if max_rows is not None else compute_arm_stats_visible_rows()
     row_limit = max(1, int(row_limit))
     def arm_sort_key(a):
         score = a.last_score if a.last_score is not None else float('-inf')
@@ -119,7 +125,9 @@ def _build_activity_panel(state, max_rows=None):
     lines=[]
     style_by_level={'warning':'yellow','error':'red','info':'white','debug':'dim'}
     row_limit = max_rows if max_rows is not None else ACTIVITY_ROW_LIMIT
-    for a in list(state.recent_activity)[-row_limit:]:
+    visible = list(state.recent_activity)[-row_limit:]
+    visible.reverse()
+    for a in visible:
         lines.append(Text(str(a['message']), style=style_by_level.get(a.get('level'), 'white')))
     if not lines:
         lines.append(Text('no recent activity', style='dim'))
