@@ -42,3 +42,7 @@ Last/Previous completed slice panels show completed scheduler jobs/slices: `18/1
 ## Production/beta controls
 
 Relevant hardening flags include `--disable-osint`, `--dns-timeout`, `--dns-lifetime`, and `--axfr-timeout`. Report artifacts are authoritative even when `--dashboard off` is used or the Rich dashboard fails. The dependency manifest is written to `config/dependency_manifest.json` and referenced from `reports/summary.json`.
+
+## Hashcat optimized-kernel controls
+
+NSEC3 Recon exposes `--hashcat-optimized-kernels` / `--no-hashcat-optimized-kernels` and `--hashcat-optimized-kernel-failover` / `--no-hashcat-optimized-kernel-failover`. Optimized kernels and automatic failover are enabled by default. The rendered scheduler config always includes top-level `hashcat.optimized_kernels` and `hashcat.optimized_kernel_failover`; when disabled, the scheduler command also receives `--no-optimized-kernels` and/or `--no-optimized-kernel-failover`.

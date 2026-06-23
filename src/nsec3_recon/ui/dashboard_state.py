@@ -59,7 +59,7 @@ class DashboardState:
         self.completed_slices_by_key={}; self.completed_slice_order=[]; self.processed_scheduler_records={}
         self.nsec3_hash_total=0; self.nsec3_hash_cracked=0; self.latest_stdout_slice_debug=None
         self.last_scheduled_arm=None
-        self.osint_status={}; self.emitted_osint_status_events=set()
+        self.osint_status={}; self.emitted_osint_status_events=set(); self.emitted_failover_events=set()
     @property
     def recovered_candidates(self): return self.discovered_names_recent
     @property
@@ -178,6 +178,7 @@ class DashboardState:
     def update_arm_status(self, data):
         if not data or not data.get('arm'):
             return False
+        self._maybe_add_failover_activity(data)
         arm=data.get('arm')
         st=self.arm_stats.setdefault(arm, ArmStats(arm))
         changed=False
@@ -188,9 +189,24 @@ class DashboardState:
             if data.get(key) is not None and getattr(st, attr) != data.get(key):
                 setattr(st, attr, data.get(key)); changed=True
         return changed
+    def _maybe_add_failover_activity(self, data):
+        if data.get('retry_reason') != 'optimized_kernel_failure':
+            return False
+        job_id = data.get('job_id') or data.get('retry_of_job_id') or id(data)
+        key = (job_id, data.get('retry_scheduled'), data.get('optimized_kernel_failover_enabled'))
+        if key in self.emitted_failover_events:
+            return False
+        self.emitted_failover_events.add(key)
+        if data.get('retry_scheduled') is True:
+            return self.add_activity('[hashcat] optimized kernels failed; retrying with unoptimized kernels', 'warning')
+        if data.get('optimized_kernel_failover_enabled') is False or data.get('retry_scheduled') is False:
+            return self.add_activity('[hashcat] optimized kernels failed; failover disabled, continuing optimized', 'warning')
+        return False
+
     def update_slice(self, data):
         if data.get('source') is not None and data.get('source') != 'jobs_jsonl':
             return False
+        self._maybe_add_failover_activity(data)
         record=dict(data); record.setdefault('source', 'jobs_jsonl'); key=self._scheduler_record_key(record); fallback_key=self._scheduler_fallback_key(record)
         if record.get('total_slices') is None and self.scheduler_total_slices is not None:
             record['total_slices'] = self.scheduler_total_slices

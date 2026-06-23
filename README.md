@@ -59,10 +59,14 @@ Last/Previous completed slice panels show completed scheduler jobs/slices: `18/1
 
 **Authorized use only.** Run NSEC3 Recon only for domains you own or are explicitly authorized to test. NSEC3 cracking can reveal internal hostnames, OSINT tools may contact external services, and hashcat can be resource intensive.
 
-For deterministic installs, `scripts/bootstrap.sh` uses pinned Git refs by default and allows environment overrides: `NSEC3MAP_REF=5af04b9c900b8f0f1a2113a22f5b34e67e637c80`, `SCHEDULER_REF=d47362b2342d007a13fff5d8301ccf7e9bd3c52f`, `PCFG_REF=171f89e85206cb22e89c3803c13f6a320d538e8b`, `SECLISTS_REF=198047f1e22251e3b88b98b10e8bd15283e8a1e9`, `OPENTAAL_REF=b250510dda431785f962019167d1415198ff3905`, and `DUTCH_DNS_WORDLISTS_REF=87403dff13f2a9da53084c88412a6e19280003ec`.
+For deterministic installs, `scripts/bootstrap.sh` uses pinned Git refs by default and allows environment overrides: `NSEC3MAP_REF=5af04b9c900b8f0f1a2113a22f5b34e67e637c80`, `SCHEDULER_REF=bdad139599761cece979eb17aabddf5c00369d7a`, `PCFG_REF=171f89e85206cb22e89c3803c13f6a320d538e8b`, `SECLISTS_REF=198047f1e22251e3b88b98b10e8bd15283e8a1e9`, `OPENTAAL_REF=b250510dda431785f962019167d1415198ff3905`, and `DUTCH_DNS_WORDLISTS_REF=87403dff13f2a9da53084c88412a6e19280003ec`.
 
 Binary dependencies are validated by minimum supported versions, not exact local versions: Python >= the `requires-python` value, Go >= 1.24.0 for Go-tool installation, hashcat >= 7.1.2, Amass >= 5.1.1, and Subfinder >= 2.14.0. Use `--disable-osint` to disable Amass/Subfinder scheduler arms; OSINT candidates are not reported as validated discoveries unless later cracked or confirmed.
 
 Unattended runs always write `events.jsonl`, `config/run.json`, `config/dependency_manifest.json`, and report artifacts under `reports/`, including `summary.json`, `summary.md`, `artifacts.json`, `cracked_names.txt`, `discovered_names.txt`, and `discovered_names.json` when applicable. The Rich dashboard is observational only; report artifacts are authoritative.
 
 DNS timeout options are available with `--dns-timeout`, `--dns-lifetime`, and `--axfr-timeout`. Development checks can be run with `python -m pytest -m "not slow and not integration"`, `python -m pytest`, `python -m ruff format --check .`, and `python -m ruff check .`.
+
+### Hashcat optimized kernels
+
+Optimized kernels are enabled by default, and automatic optimized-kernel failover is enabled by default. If hashcat hits an optimized-kernel-specific failure, the updated scheduler retries the failed slice once with unoptimized kernels and continues unoptimized. Use `--no-hashcat-optimized-kernels` to start unoptimized, `--hashcat-optimized-kernel-failover` to request the default automatic failover policy, or `--no-hashcat-optimized-kernel-failover` to keep optimized kernels enabled even after optimized-kernel-specific failures. `scheduler/jobs.jsonl` records observed scheduler behavior, `reports/summary.json` records requested and observed optimized-kernel state, and the dashboard shows compact failover/no-failover Recent activity messages.
