@@ -54,8 +54,8 @@ def compute_arm_table_max_rows(terminal_height=None):
     if terminal_height >= 40:
         return 14
     if terminal_height >= 32:
-        return 10
-    return 8
+        return 12
+    return 12
 
 def _build_arm_panel(state, max_rows=None):
     from rich.panel import Panel
@@ -113,16 +113,17 @@ def _discovered_source_label(state):
         return 'nsec3'
     return 'none'
 
-def _build_activity_panel(state):
+def _build_activity_panel(state, max_rows=None):
     from rich.panel import Panel
     from rich.text import Text
     lines=[]
     style_by_level={'warning':'yellow','error':'red','info':'white','debug':'dim'}
-    for a in list(state.recent_activity)[-ACTIVITY_ROW_LIMIT:]:
+    row_limit = max_rows if max_rows is not None else ACTIVITY_ROW_LIMIT
+    for a in list(state.recent_activity)[-row_limit:]:
         lines.append(Text(str(a['message']), style=style_by_level.get(a.get('level'), 'white')))
     if not lines:
         lines.append(Text('no recent activity', style='dim'))
-    while len(lines) < ACTIVITY_ROW_LIMIT:
+    while len(lines) < row_limit:
         lines.append(Text(''))
     body=Text('\n').join(lines)
     return Panel(body, title='Recent activity', border_style='blue')

@@ -71,7 +71,10 @@ class DashboardState:
     @property
     def elapsed_seconds(self): return time.time()-self.started_at
     def add_activity(self, message, level='info'):
-        if message: self.recent_activity.append({'ts': time.time(), 'level': level, 'message': str(message)[:180]})
+        if not message:
+            return False
+        self.recent_activity.append({'ts': time.time(), 'level': level, 'message': str(message)[:180]})
+        return True
     def handle_event(self, event):
         self.event_count += 1
         if event.level == 'warning': self.warnings_count += 1
