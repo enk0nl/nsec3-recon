@@ -83,28 +83,40 @@ def normalize_scheduler_record(record: dict) -> SchedulerParseResult | None:
     if not isinstance(record, dict):
         return None
     arm = _first(record, 'arm', 'arm_name', 'arm_type')
-    has_new = any(k in record for k in ('new', 'new_discoveries', 'discoveries'))
-    has_metric = has_new or any(k in record for k in ('reward', 'score', 'score_after', 'runtime', 'runtime_seconds', 'actual_runtime_seconds'))
-    if not arm or not has_metric:
+    new_keys=('shared_new_cracks', 'marginal_new_cracks', 'new_cracks', 'new_discoveries', 'discoveries', 'new')
+    has_new = any(k in record for k in new_keys)
+    if not arm or not has_new:
+        return None
+    if record.get('valid_work') is False:
+        return None
+    status = record.get('execution_status')
+    if status is not None and status not in {'executed', 'valid', 'completed'}:
         return None
     phase = _first(record, 'phase', 'schedule')
     if not phase and record.get('warmup') is True:
         phase = 'warmup'
     data = {
         'phase': phase or 'unknown',
-        'slice_index': _to_int(_first(record, 'slice_index', 'slice', 'index')),
+        'slice_index': _to_int(_first(record, 'slice_index', 'slice', 'index', 'job_id')),
         'total_slices': _to_int(_first(record, 'total_slices', 'slices')),
         'schedule_name': _first(record, 'schedule', 'phase') or 'jobs_jsonl',
         'arm': str(arm),
-        'reason': _first(record, 'reason'),
-        'new': _to_int(_first(record, 'new', 'new_discoveries', 'discoveries')) if has_new else 0,
-        'total': _to_int(_first(record, 'total', 'total_discoveries')),
-        'reward': _to_float(_first(record, 'reward')),
+        'reason': _first(record, 'selection_reason', 'reason'),
+        'new': _to_int(_first(record, *new_keys)),
+        'total': _to_int(_first(record, 'total_cracks', 'total_discoveries', 'total')),
+        'global_total': _to_int(_first(record, 'total_cracks', 'total_discoveries', 'total')),
+        'reward': _to_float(_first(record, 'reward_used_for_score', 'reward')),
         'score_before': _to_float(_first(record, 'score_before')),
         'score_after': _to_float(_first(record, 'score_after', 'score')),
         'runtime_seconds': _to_float(_first(record, 'runtime_seconds', 'actual_runtime_seconds', 'runtime')),
         'source': 'jobs_jsonl',
         'job_id': _first(record, 'job_id', 'id', 'uuid'),
+        'record_key': f"job_id:{_first(record, 'job_id', 'id', 'uuid')}" if _first(record, 'job_id', 'id', 'uuid') is not None else None,
+        'timestamp': _first(record, 'timestamp'),
+        'requested_slice_seconds': _to_float(_first(record, 'requested_slice_seconds')),
+        'exit_code': _first(record, 'exit_code'),
+        'exit_meaning': _first(record, 'exit_meaning'),
+        'exhausted': _first(record, 'exhausted'),
         'raw_record': record,
     }
     return SchedulerParseResult(True, '', data)

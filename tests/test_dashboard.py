@@ -433,7 +433,7 @@ def test_discovered_names_no_source_column_by_default():
 
 def test_discovered_names_footer_summarizes_source():
     s=DashboardState('example.nl','/tmp/ws'); s.current_potfile_path='/tmp/ws/scheduler/run.pot'; s.add_discovered_names(['loting'], source='nsec3')
-    assert 'source: run.pot' in _render_text(s)
+    assert 'source: nsec3' in _render_text(s)
 
 def test_discovered_names_mixed_source_footer():
     s=DashboardState('example.nl','/tmp/ws'); s.add_discovered_names(['a'], source='axfr'); s.add_discovered_names(['b'], source='nsec3')
@@ -445,3 +445,94 @@ def test_discovered_name_column_has_width():
     s=DashboardState('example.nl','/tmp/ws'); s.add_discovered_names([long], source='nsec3')
     out=_render_text(s)
     assert 'very-long-discovered-name' in out
+
+def _real_warmup_record():
+    return {
+        'timestamp':'2026-06-23T07:25:00.444130+00:00','job_id':1,'phase':'warmup','arm':'dict/seclists',
+        'arm_family':'dict','arm_short_name':'seclists','arm_type':'dictionary','attack_type':'dictionary',
+        'selection_reason':'warmup','requested_slice_seconds':15,'runtime_seconds':18.737359523773193,
+        'exit_code':4,'exit_meaning':'runtime_reached','execution_status':'executed','valid_work':True,
+        'new_cracks':105,'marginal_new_cracks':105,'shared_new_cracks':105,
+        'warmup_scoring':'arm_local','potfile_scope':'arm_local','arm_local_cracks':105,'arm_local_new_cracks':105,
+        'reward_used_for_score':5.603777835760706,'total_cracks':105,'reward':5.603777835760706,
+        'score_before':0.0,'score_after':0.8405666753641059,'exhausted':False,
+    }
+
+def test_jobs_jsonl_normalizer_reads_real_warmup_schema():
+    from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record
+    d=normalize_scheduler_record(_real_warmup_record()).data
+    assert d['record_key']=='job_id:1' and d['phase']=='warmup' and d['arm']=='dict/seclists' and d['reason']=='warmup'
+    assert d['new']==105 and d['global_total']==105 and d['reward']==5.603777835760706
+    assert d['score_before']==0.0 and d['score_after']==0.8405666753641059 and d['runtime_seconds']==18.737359523773193
+
+def test_arm_stats_include_warmup_shared_new_cracks():
+    from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record
+    s=DashboardState('example.nl','/tmp/ws'); s.update_slice(normalize_scheduler_record(_real_warmup_record()).data)
+    arm=s.arm_stats['dict/seclists']
+    assert arm.run_count==1 and arm.total_new==105 and arm.last_new==105
+    assert arm.last_reward==5.603777835760706 and arm.last_score==0.8405666753641059 and round(arm.avg_runtime,1)==18.7
+    assert arm.last_seen_slice == 1
+
+def test_new_field_precedence_prefers_shared_new_cracks():
+    from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record
+    d=normalize_scheduler_record({'arm':'a','shared_new_cracks':10,'marginal_new_cracks':20,'new_cracks':30,'new':40}).data
+    assert d['new'] == 10
+
+def test_new_field_fallback_to_new_cracks():
+    from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record
+    assert normalize_scheduler_record({'arm':'a','new_cracks':30}).data['new'] == 30
+
+def test_reward_precedence_prefers_reward_used_for_score():
+    from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record
+    assert normalize_scheduler_record({'arm':'a','new':1,'reward_used_for_score':5.0,'reward':2.0}).data['reward'] == 5.0
+
+def test_seen_uses_job_id_when_slice_missing():
+    from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record
+    s=DashboardState('example.nl','/tmp/ws'); s.update_slice(normalize_scheduler_record({'job_id':7,'arm':'a','new':1}).data)
+    assert s.arm_stats['a'].last_seen_slice == 7
+
+def test_invalid_non_work_job_record_ignored():
+    from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record
+    assert normalize_scheduler_record({'event':'startup','new':1}) is None
+    assert normalize_scheduler_record({'arm':'a','event':'metadata'}) is None
+
+def test_valid_work_false_ignored():
+    from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record
+    assert normalize_scheduler_record({'valid_work':False,'arm':'dict/seclists','shared_new_cracks':10}) is None
+
+def test_jobs_jsonl_tail_updates_arm_table(tmp_path):
+    import json
+    p=tmp_path/'scheduler'/'jobs.jsonl'; p.parent.mkdir(); p.write_text(json.dumps(_real_warmup_record())+'\n')
+    d=RichDashboard('example.nl', tmp_path, potfile_poll_interval_seconds=0); d.poll_external_sources()
+    assert d.state.arm_stats['dict/seclists'].total_new == 105
+
+def test_potfile_discovery_source_is_nsec3(tmp_path):
+    p=tmp_path/'run.pot'; p.write_text('h:loting\n')
+    d=RichDashboard('example.nl', tmp_path); d.state.current_potfile_path=str(p); d.poll_external_sources()
+    item=d.state.discovered_names_recent[0]
+    assert item.source=='nsec3' and item.method=='hashcat_potfile'
+
+def test_discovered_names_footer_uses_nsec3_not_run_pot():
+    s=DashboardState('example.nl','/tmp/ws'); s.current_potfile_path='/tmp/ws/scheduler/run.pot'; s.add_discovered_names(['loting'], source='nsec3')
+    out=_render_text(s)
+    assert 'source: nsec3' in out
+    assert 'source: run.pot' not in out
+
+def test_run_pot_may_be_artifact_source_not_logical_source():
+    from nsec3_recon.ui.dashboard_state import DiscoveredName
+    item=DiscoveredName(name='loting', source='nsec3', method='hashcat_potfile', first_seen_at='07:12:02')
+    item.source_file='run.pot'
+    s=DashboardState('example.nl','/tmp/ws'); s.discovered_names_recent.append(item); s.discovered_names_by_source={'nsec3':1}; s.discovered_names_count=1
+    out=_render_text(s)
+    assert 'source: nsec3' in out and 'source: run.pot' not in out
+
+def test_axfr_nsec_nsec3_source_labels():
+    s=DashboardState('example.nl')
+    s.add_discovered_names(['a'], source='axfr'); s.add_discovered_names(['b'], source='nsec'); s.add_discovered_names(['c'], source='nsec3')
+    assert set(s.discovered_names_by_source) == {'axfr','nsec','nsec3'}
+
+def test_discovered_names_rows_show_name_only():
+    from nsec3_recon.ui.dashboard_state import DiscoveredName
+    s=DashboardState('example.nl','/tmp/ws'); s.discovered_names_recent.append(DiscoveredName(name='loting', source='nsec3', method='hashcat_potfile', first_seen_at='07:12:02')); s.discovered_names_count=1; s.discovered_names_by_source={'nsec3':1}
+    out=_render_text(s)
+    assert '07:12:02  loting' in out and '07:12:02  nsec3  loting' not in out

@@ -105,18 +105,24 @@ class DashboardState:
         if event.stage=='nsec3map':
             return 'nsec3map_detect' if 'detect' in event.event else 'nsec3map_enumeration'
         return event.stage
-    def _scheduler_record_key(self, data):
-        if data.get('job_id'):
-            return ('job', data.get('job_id'))
+    def _scheduler_fallback_key(self, data):
         return (data.get('slice_index'), data.get('arm'), data.get('new'), data.get('reward'), data.get('runtime_seconds'))
+    def _scheduler_record_key(self, data):
+        if data.get('record_key'):
+            return data.get('record_key')
+        if data.get('job_id'):
+            return f"job_id:{data.get('job_id')}"
+        return self._scheduler_fallback_key(data)
     def update_slice(self, data):
-        record=dict(data); key=self._scheduler_record_key(record)
-        if key in self.processed_scheduler_records:
+        record=dict(data); key=self._scheduler_record_key(record); fallback_key=self._scheduler_fallback_key(record)
+        if key in self.processed_scheduler_records or (record.get('source') == 'jobs_jsonl' and fallback_key in self.processed_scheduler_records):
             # Avoid double-counting when stdout fallback and jobs.jsonl report the same run.
             if record.get('source') == 'jobs_jsonl':
                 self.processed_scheduler_records[key] = record
+                self.processed_scheduler_records[fallback_key] = record
             return False
         self.processed_scheduler_records[key]=record
+        self.processed_scheduler_records[fallback_key]=record
         self.previous_completed_slice=self.last_completed_slice; self.last_completed_slice=record; self.slice_history.append(record); self.scheduler_started=True
         arm=record.get('arm') or 'unknown'
         for a in self.arm_stats.values(): a.active=False

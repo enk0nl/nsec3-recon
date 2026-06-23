@@ -80,11 +80,9 @@ def _discovered_source_label(state):
         return ','.join(sorted(state.discovered_names_by_source))
     if len(state.discovered_names_by_source) == 1:
         only=next(iter(state.discovered_names_by_source))
-        if only == 'nsec3' and state.current_potfile_path:
-            return state.current_potfile_path.split('/')[-1]
         return only
     if state.current_potfile_path:
-        return state.current_potfile_path.split('/')[-1]
+        return 'nsec3'
     return 'none'
 
 def _build_activity_panel(state):

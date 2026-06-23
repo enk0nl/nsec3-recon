@@ -177,3 +177,19 @@ def test_docs_do_not_show_nsec3_as_per_row_discovered_name_column():
     from pathlib import Path
     text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
     assert '07:12:02  nsec3' not in text
+
+def test_docs_explain_jobs_jsonl_warmup_fields():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    for token in ('shared_new_cracks','new_cracks','reward_used_for_score','phase=warmup'):
+        assert token in text
+
+def test_docs_explain_discovery_sources():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert '`axfr`, `nsec`, and `nsec3`' in text
+
+def test_docs_do_not_call_run_pot_a_discovery_source():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert 'run.pot` is an artifact file, not a discovery source label' in text
