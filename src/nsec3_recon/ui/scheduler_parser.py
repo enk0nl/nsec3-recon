@@ -147,7 +147,7 @@ def normalize_scheduler_record(record: dict) -> SchedulerParseResult | None:
     has_new = any(k in record for k in new_keys)
     if not arm or not has_new:
         return None
-    if record.get('valid_work') is False:
+    if record.get('valid_work') is False or record.get('scored') is False:
         return None
     status = record.get('execution_status')
     if status is not None and status not in {'executed', 'valid', 'completed'}:
@@ -177,6 +177,10 @@ def normalize_scheduler_record(record: dict) -> SchedulerParseResult | None:
         'exit_code': _first(record, 'exit_code'),
         'exit_meaning': _first(record, 'exit_meaning'),
         'exhausted': _first(record, 'exhausted'),
+        'retry_reason': _first(record, 'retry_reason'),
+        'retry_scheduled': _first(record, 'retry_scheduled'),
+        'retry_of_job_id': _first(record, 'retry_of_job_id'),
+        'optimized_kernel_failover_enabled': _first(record, 'optimized_kernel_failover_enabled'),
         'raw_record': record,
     }
     return SchedulerParseResult(True, '', data)
@@ -189,7 +193,7 @@ def normalize_scheduler_status_record(record: dict) -> SchedulerParseResult | No
     if not arm:
         return None
     status = _first(record, 'status', 'execution_status', 'availability_status')
-    fields = ('exhausted', 'failed', 'unavailable', 'reason', 'availability_reason', 'error')
+    fields = ('exhausted', 'failed', 'unavailable', 'reason', 'availability_reason', 'error', 'retry_reason', 'retry_scheduled')
     if status is None and not any(k in record for k in fields):
         return None
     failed = bool(record.get('failed')) or status in {'failed', 'error'}
@@ -204,6 +208,11 @@ def normalize_scheduler_status_record(record: dict) -> SchedulerParseResult | No
         'reason': _first(record, 'reason', 'error'),
         'availability_reason': _first(record, 'availability_reason'),
         'source': 'jobs_jsonl',
+        'retry_reason': _first(record, 'retry_reason'),
+        'retry_scheduled': _first(record, 'retry_scheduled'),
+        'retry_of_job_id': _first(record, 'retry_of_job_id'),
+        'optimized_kernel_failover_enabled': _first(record, 'optimized_kernel_failover_enabled'),
+        'job_id': _first(record, 'job_id', 'id', 'uuid'),
         'raw_record': record,
     }
     return SchedulerParseResult(True, '', data)

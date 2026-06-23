@@ -44,6 +44,8 @@ class PipelineConfig:
     dns_lifetime: float = 10.0
     axfr_timeout: float = 10.0
     osint_enabled: bool = True
+    hashcat_optimized_kernels: bool = True
+    hashcat_optimized_kernel_failover: bool = True
     tools: dict = field(default_factory=dict)
 
     def resolved(self):
@@ -87,8 +89,13 @@ class PipelineConfig:
         config_file = Path(config_file).resolve()
         scheduler_dir = (workspace / "scheduler").resolve()
         scheduler_dir.mkdir(parents=True, exist_ok=True)
-        return shlex.split(self.scheduler_bin) + [
+        cmd = shlex.split(self.scheduler_bin) + [
             "run", "--hashes", str(hash_file), "--hash-mode", "8300", "--config", str(config_file),
             "--out-dir", str(scheduler_dir), "--schedule", self.schedule,
             "--total-slices", str(self.total_slices), "--slice-seconds", str(self.slice_seconds),
         ]
+        if not self.hashcat_optimized_kernels:
+            cmd.append("--no-optimized-kernels")
+        if not self.hashcat_optimized_kernel_failover:
+            cmd.append("--no-optimized-kernel-failover")
+        return cmd

@@ -39,6 +39,57 @@ def write_artifacts_manifest(ctx, roles: dict[str, str] | None = None):
     p = ctx.workspace.write_json('reports/artifacts.json', {'schema_version': 1, 'artifacts': items})
     return p
 
+def _load_scheduler_jobs(root: Path) -> list[dict]:
+    path = root / 'scheduler/jobs.jsonl'
+    if not path.exists():
+        return []
+    jobs = []
+    for line in path.read_text(encoding='utf-8', errors='ignore').splitlines():
+        try:
+            obj = json.loads(line)
+        except Exception:
+            continue
+        if isinstance(obj, dict):
+            jobs.append(obj)
+    return jobs
+
+def _optimized_kernel_summary(ctx) -> dict:
+    jobs = _load_scheduler_jobs(ctx.workspace.root)
+    observed = [j.get('hashcat_optimized_kernels') for j in jobs if 'hashcat_optimized_kernels' in j]
+    failover_records = [j for j in jobs if j.get('retry_reason') == 'optimized_kernel_failure' and j.get('retry_scheduled') is True]
+    retry_records = [j for j in jobs if j.get('retry_reason') == 'optimized_kernel_failure' and j.get('retry_of_job_id') is not None]
+    failover = bool(failover_records or retry_records)
+    trigger = failover_records[0].get('job_id') if failover_records else (retry_records[0].get('retry_of_job_id') if retry_records else None)
+    disabled_failures = sum(1 for j in jobs if j.get('retry_reason') == 'optimized_kernel_failure' and j.get('optimized_kernel_failover_enabled') is False and j.get('retry_scheduled') is False)
+    observed_state = None
+    if observed:
+        if failover and any(v is False for v in observed):
+            observed_state = False
+        elif all(v is True for v in observed):
+            observed_state = True
+        elif all(v is False for v in observed):
+            observed_state = False
+        else:
+            observed_state = bool(observed[-1])
+    return {
+        'requested_hashcat_optimized_kernels': bool(ctx.config.hashcat_optimized_kernels),
+        'requested_hashcat_optimized_kernel_failover': bool(ctx.config.hashcat_optimized_kernel_failover),
+        'observed_hashcat_optimized_kernels': observed_state,
+        'hashcat_optimized_kernel_failover': failover,
+        'hashcat_optimized_kernel_failover_job_id': trigger,
+        'hashcat_optimized_kernel_failover_disabled_failures': disabled_failures,
+    }
+
+def _optimized_kernel_summary_line(meta: dict) -> str:
+    if meta.get('requested_hashcat_optimized_kernels') is False:
+        return 'Hashcat optimized kernels: disabled from start'
+    if meta.get('hashcat_optimized_kernel_failover'):
+        return f"Hashcat optimized kernels: requested enabled, automatically disabled after job {meta.get('hashcat_optimized_kernel_failover_job_id')}"
+    disabled = meta.get('hashcat_optimized_kernel_failover_disabled_failures') or 0
+    if meta.get('requested_hashcat_optimized_kernel_failover') is False:
+        return f"Hashcat optimized kernels: requested enabled; automatic failover disabled; {disabled} optimized-kernel failures observed"
+    return 'Hashcat optimized kernels: requested enabled; automatic failover enabled'
+
 
 def write_summary(ctx, completed_via, failed_stage=None, error=None):
     ax=ctx.state.get('axfr',{}); dnssec=ctx.state.get('dnssec',{}); detect=ctx.state.get('nsec3map_detect',{}); n3=ctx.state.get('nsec3map',{}); h=ctx.state.get('hashcatify',{})
@@ -68,6 +119,7 @@ def write_summary(ctx, completed_via, failed_stage=None, error=None):
     dnssec_probe_enabled = dnssec.get('probe_dnssec_enabled', dnssec.get('dnssec_enabled'))
     completed_at = _utc()
     run_meta = getattr(ctx.workspace, 'run_metadata', {}) or {}
+    kernel_meta = _optimized_kernel_summary(ctx)
     obj={
         'schema_version': 1,
         'run_id': run_meta.get('run_id'),
@@ -92,12 +144,13 @@ def write_summary(ctx, completed_via, failed_stage=None, error=None):
         'elapsed_seconds':round(time.time()-ctx.started_at,3),
         'artifacts':artifacts,
         'dependency_manifest': artifacts.get('dependency_manifest'),
+        **kernel_meta,
     }
     if failed_stage: obj.update({'failed_stage':failed_stage,'error':error})
     ctx.workspace.write_json('reports/summary.json', obj)
     ctx.state['summary'] = obj
     if getattr(ctx, 'events', None):
         ctx.events.emit('summarize', 'completed', 'summary written', data=obj)
-    lines=["# NSEC3 Recon summary",'',f"Domain: `{ctx.config.domain}`",f"Run ID: `{obj.get('run_id')}`",f"Completed via: `{completed_via}`",f"Hash count: `{obj.get('hash_count')}`",f"Cracked count: `{obj.get('cracked_count')}`",f"Discovered names: `{obj.get('discovered_names_count')}`",'',"## Artifacts"]+[f"- {k}: `{v}`" for k,v in artifacts.items()]
+    lines=["# NSEC3 Recon summary",'',f"Domain: `{ctx.config.domain}`",f"Run ID: `{obj.get('run_id')}`",f"Completed via: `{completed_via}`",f"Hash count: `{obj.get('hash_count')}`",f"Cracked count: `{obj.get('cracked_count')}`",f"Discovered names: `{obj.get('discovered_names_count')}`",_optimized_kernel_summary_line(kernel_meta),'',"## Artifacts"]+[f"- {k}: `{v}`" for k,v in artifacts.items()]
     (ctx.workspace.root/'reports/summary.md').write_text('\n'.join(lines)+'\n', encoding='utf-8')
     return obj

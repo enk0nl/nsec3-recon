@@ -23,6 +23,12 @@ def build_parser():
     p.add_argument("--subfinder-bin", default="~/go/bin/subfinder")
     p.add_argument("--assets-dir", default="assets")
     p.add_argument("--dry-run", action="store_true")
+    kernels = p.add_mutually_exclusive_group()
+    kernels.add_argument("--hashcat-optimized-kernels", dest="hashcat_optimized_kernels", action="store_true", default=True, help="start scheduler/hashcat with optimized kernels (default)")
+    kernels.add_argument("--no-hashcat-optimized-kernels", dest="hashcat_optimized_kernels", action="store_false", help="start scheduler/hashcat without optimized kernels")
+    failover = p.add_mutually_exclusive_group()
+    failover.add_argument("--hashcat-optimized-kernel-failover", dest="hashcat_optimized_kernel_failover", action="store_true", default=True, help="allow scheduler failover from optimized to unoptimized kernels (default)")
+    failover.add_argument("--no-hashcat-optimized-kernel-failover", dest="hashcat_optimized_kernel_failover", action="store_false", help="keep optimized kernels enabled after optimized-kernel-specific failures")
     p.add_argument("--dns-timeout", type=float, default=3.0, help="per DNS query timeout in seconds (default: 3.0)")
     p.add_argument("--dns-lifetime", type=float, default=10.0, help="DNS resolver lifetime in seconds (default: 10.0)")
     p.add_argument("--axfr-timeout", type=float, default=10.0, help="AXFR timeout in seconds (default: 10.0)")
@@ -63,6 +69,8 @@ def main(argv=None):
             dns_lifetime=args.dns_lifetime,
             axfr_timeout=args.axfr_timeout,
             osint_enabled=args.osint_enabled,
+            hashcat_optimized_kernels=args.hashcat_optimized_kernels,
+            hashcat_optimized_kernel_failover=args.hashcat_optimized_kernel_failover,
             verbose=args.verbose,
         )
         ctx = Pipeline(cfg).run()

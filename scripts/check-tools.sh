@@ -62,6 +62,25 @@ else
   missing=1
 fi
 python3 -m nsec3_candidate_scheduler --help >/dev/null 2>&1 && ok "python3 -m nsec3_candidate_scheduler" || miss "python3 -m nsec3_candidate_scheduler"
+if command -v timeout >/dev/null 2>&1; then TIMEOUT_CMD=(timeout 10); else TIMEOUT_CMD=(); fi
+set +e
+SCHED_HELP=$("${TIMEOUT_CMD[@]}" python3 -m nsec3_candidate_scheduler run --help 2>&1)
+SCHED_RC=$?
+set -e 2>/dev/null || true
+if [[ $SCHED_RC -ne 0 ]]; then
+  miss "python3 -m nsec3_candidate_scheduler run --help"
+else
+  sched_missing=0
+  for opt in --no-optimized-kernels --optimized-kernel-failover --no-optimized-kernel-failover; do
+    if [[ "$SCHED_HELP" != *"$opt"* ]]; then sched_missing=1; fi
+  done
+  if [[ $sched_missing -eq 0 ]]; then
+    ok "nsec3-candidate-scheduler optimized-kernel failover options"
+  else
+    echo "[bad-version] nsec3-candidate-scheduler is too old. Re-run scripts/bootstrap.sh or install scheduler ref bdad139599761cece979eb17aabddf5c00369d7a."
+    missing=1
+  fi
+fi
 [[ -f deps/src/nsec3map/map.py ]] && ok "nsec3map source: deps/src/nsec3map/map.py" || miss "deps/src/nsec3map/map.py"
 if [[ -f deps/src/nsec3map/map.py ]]; then (cd deps/src/nsec3map && "$N3PY_RUN" -c "import n3map.map" >/dev/null 2>&1) && ok "nsec3map import: n3map.map" || warn "nsec3map import n3map.map failed; ensure deps/src/nsec3map is cloned and $N3PY has dnspython psycopg2-binary"; fi
 ([[ -f deps/src/nsec3map/hashcatify.py ]] || [[ -f deps/src/nsec3map/n3map/hashcatify.py ]]) && ok "nsec3map hashcatify.py" || miss "nsec3map hashcatify.py"

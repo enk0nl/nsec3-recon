@@ -28,3 +28,26 @@ Last/Previous completed slice panels show completed scheduler jobs/slices: `18/1
 Use this tool only for domains you own or are authorized to test. NSEC3 cracking can disclose internal hostnames, hashcat can consume substantial compute resources, and OSINT arms may contact external services. Use `--disable-osint` to render scheduler OSINT arms disabled and avoid requiring Amass/Subfinder.
 
 The dashboard is not authoritative. For unattended runs, review `events.jsonl`, `reports/summary.json`, `reports/summary.md`, `reports/artifacts.json`, and discovered/cracked-name files in `reports/`. DNS behavior can be bounded with `--dns-timeout`, `--dns-lifetime`, and `--axfr-timeout`.
+
+## Hashcat optimized kernels and failover
+
+By default, NSEC3 Recon starts the scheduler with hashcat optimized kernels enabled and optimized-kernel failover enabled:
+
+```sh
+nsec3-recon example.nl
+```
+
+Use `--no-hashcat-optimized-kernels` to start scheduler/hashcat without optimized kernels. This is slower, but more compatible with long or problematic candidates:
+
+```sh
+nsec3-recon example.nl --no-hashcat-optimized-kernels
+```
+
+Use `--hashcat-optimized-kernel-failover` to allow automatic scheduler failover from optimized to unoptimized kernels; this is the default. If an optimized-kernel-specific hashcat failure occurs, the scheduler retries the failed slice once unoptimized and continues unoptimized. Use `--no-hashcat-optimized-kernel-failover` to keep optimized kernels enabled even after optimized-kernel-specific failures, which can be useful when the operator prefers speed and accepts some failed candidate sets:
+
+```sh
+nsec3-recon example.nl --no-hashcat-optimized-kernel-failover
+nsec3-recon example.nl --no-hashcat-optimized-kernels --no-hashcat-optimized-kernel-failover
+```
+
+The dashboard Recent activity panel shows compact failover or no-failover messages from `scheduler/jobs.jsonl`. Reports include requested and observed optimized-kernel state in `reports/summary.json`.

@@ -48,10 +48,12 @@ class Pipeline:
         ctx=self.setup()
         try:
             preflight.run(ctx)
-            render_scheduler_config(ctx.config.domain, ctx.config.assets_dir, ctx.workspace.root/'config/scheduler_config.json', ctx.config.scheduler_config or ctx.config.config_template, ctx.config.amass_bin, ctx.config.subfinder_bin, ctx.config.osint_enabled)
+            render_scheduler_config(ctx.config.domain, ctx.config.assets_dir, ctx.workspace.root/'config/scheduler_config.json', ctx.config.scheduler_config or ctx.config.config_template, ctx.config.amass_bin, ctx.config.subfinder_bin, ctx.config.osint_enabled, ctx.config.hashcat_optimized_kernels, ctx.config.hashcat_optimized_kernel_failover)
             if ctx.config.dry_run:
                 hf=ctx.workspace.root/'nsec3map/nsec3map_hashfile.hash'; sc=ctx.workspace.root/'config/scheduler_config.json'
                 print('Planned commands:')
+                print(f"Hashcat optimized kernels: {'enabled' if ctx.config.hashcat_optimized_kernels else 'disabled'}")
+                print(f"Hashcat optimized-kernel failover: {'enabled' if ctx.config.hashcat_optimized_kernel_failover else 'disabled'}")
                 print(' '.join([ctx.config.nsec3map_python, 'map.py', '--detect-only', ctx.config.domain]))
                 print(' '.join([ctx.config.nsec3map_python, 'map.py', f"--output={ctx.workspace.root/'nsec3map/zone.txt'}", ctx.config.domain]))
                 print(' '.join([ctx.config.nsec3map_python, '<hashcatify.py>', str(ctx.workspace.root/'nsec3map/zone.txt'), str(hf)]))

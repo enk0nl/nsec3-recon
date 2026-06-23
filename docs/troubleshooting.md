@@ -134,3 +134,9 @@ Last/Previous completed slice panels show completed scheduler jobs/slices: `18/1
 ## Production/beta troubleshooting
 
 If a run fails, inspect `events.jsonl`, `logs/listener_errors.log` for dashboard/listener failures, `reports/summary.json`, and `reports/artifacts.json`. Scheduler asset preflight errors intentionally list every missing or empty enabled-arm asset before launching the scheduler. Use `--disable-osint` if Amass/Subfinder are not installed or external OSINT access is not authorized.
+
+## Optimized-kernel compatibility
+
+If hashcat reports optimized-kernel-specific failures, leave the default `--hashcat-optimized-kernel-failover` enabled so the scheduler can retry once with unoptimized kernels and continue unoptimized. To start unoptimized immediately, run `nsec3-recon example.nl --no-hashcat-optimized-kernels`. To keep optimized kernels enabled and avoid automatic retries, use `--no-hashcat-optimized-kernel-failover`.
+
+`scripts/check-tools.sh` verifies that `nsec3-candidate-scheduler run --help` supports `--no-optimized-kernels`, `--optimized-kernel-failover`, and `--no-optimized-kernel-failover`. If it reports the scheduler is too old, rerun `scripts/bootstrap.sh` or install scheduler ref `bdad139599761cece979eb17aabddf5c00369d7a`.

@@ -14,16 +14,22 @@ def _replace_placeholders(value, domain, amass_value, subfinder_value):
         return {k: _replace_placeholders(v, domain, amass_value, subfinder_value) for k, v in value.items()}
     return value
 
-def render_scheduler_config(domain, assets_dir, output_path, template_path=None, amass_bin=None, subfinder_bin=None, osint_enabled=True):
+def render_scheduler_config(domain, assets_dir, output_path, template_path=None, amass_bin=None, subfinder_bin=None, osint_enabled=True, hashcat_optimized_kernels=True, hashcat_optimized_kernel_failover=True):
     text = (Path(template_path).read_text() if template_path else files("nsec3_recon.templates").joinpath("scheduler_config.json").read_text())
     data = json.loads(text)
     amass_value = resolve_osint_binary(amass_bin or DEFAULT_AMASS_BIN, "amass", DEFAULT_AMASS_BIN)
     subfinder_value = resolve_osint_binary(subfinder_bin or DEFAULT_SUBFINDER_BIN, "subfinder", DEFAULT_SUBFINDER_BIN)
     data = _replace_placeholders(data, domain, amass_value, subfinder_value)
+    data["hashcat"] = {
+        "optimized_kernels": bool(hashcat_optimized_kernels),
+        "optimized_kernel_failover": bool(hashcat_optimized_kernel_failover),
+    }
     assets_dir = Path(assets_dir).resolve()
     for arm in data.get("arms", []):
         if not osint_enabled and str(arm.get("name", "")).startswith("osint/"):
             arm["enabled"] = False
+        if "hashcat" in arm or arm.get("type") in {"hashcat", "wordlist", "pcfg", "markov", "predictive"}:
+            arm.setdefault("hashcat", {})["optimized_kernels"] = bool(hashcat_optimized_kernels)
         for key in ASSET_KEYS:
             v = arm.get(key)
             if isinstance(v, str) and v.startswith("assets/"):

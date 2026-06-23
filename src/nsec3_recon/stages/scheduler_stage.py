@@ -79,6 +79,8 @@ def run(ctx):
         ctx.config.amass_bin,
         ctx.config.subfinder_bin,
         ctx.config.osint_enabled,
+        ctx.config.hashcat_optimized_kernels,
+        ctx.config.hashcat_optimized_kernel_failover,
     )
     hash_file = (ctx.workspace.root / "nsec3map/nsec3map_hashfile.hash").resolve()
     model_errors = validate_model_assets(rendered)
