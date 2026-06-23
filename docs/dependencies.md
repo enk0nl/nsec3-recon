@@ -73,3 +73,5 @@ assets/models/common_suffixes_top10000.txt
 ```
 
 The prepared files may be symlinks back to `deps/src/nsec3-candidate-scheduler/models/`. If `assets/models/` is empty, run `scripts/prepare-models.sh` or `scripts/prepare-assets.sh`.
+
+Dashboard scheduler aggregation prefers `scheduler/jobs.jsonl` when available so warm-up slices are included in arm Total and Runs; stdout parsing remains a live fallback. Discovered names rows display only timestamp and name, with source summarized in the panel footer.

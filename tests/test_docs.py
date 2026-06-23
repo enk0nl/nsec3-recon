@@ -162,3 +162,18 @@ def test_docs_explain_total_vs_global_total():
     text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
     assert 'sum of per-slice `new` values' in text
     assert 'scheduler line field `total` is the global discovered/cracked total' in text
+
+def test_docs_explain_warmup_included_in_arm_total():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert 'warm-up slices are included in arm Total' in text
+
+def test_docs_explain_jobs_jsonl_dashboard_source():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert 'scheduler/jobs.jsonl' in text and 'stdout parsing remains a live fallback' in text
+
+def test_docs_do_not_show_nsec3_as_per_row_discovered_name_column():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert '07:12:02  nsec3' not in text

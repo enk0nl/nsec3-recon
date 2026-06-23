@@ -18,7 +18,8 @@ def shorten_middle(value: str, max_len: int = 28) -> str:
 
 def _slice_lines(s):
     if not s: return ['waiting for completed scheduler slice…']
-    lines=[f"slice {s.get('slice_index','?')}/{s.get('total_slices','?')}  policy={s.get('schedule_name','?')}", f"arm={s.get('arm','?')}  reason={s.get('reason','-')}"]
+    phase=s.get('phase') or s.get('schedule_name') or 'unknown'
+    lines=[f"slice {s.get('slice_index','?')}/{s.get('total_slices','?')}  phase={phase}", f"arm={s.get('arm','?')}  reason={s.get('reason','-')}"]
     lines.append(f"new={s.get('new','-')}  total={s.get('total','-')}  reward={_fmt_float(s.get('reward'))}  runtime={_fmt_runtime(s.get('runtime_seconds'))}")
     if s.get('score_before') is not None: lines.append(f"score {_fmt_float(s.get('score_before'))} → {_fmt_float(s.get('score_after'))}")
     if s.get('queue_before') is not None: lines.append(f"queue {s.get('queue_before')} → {s.get('queue_after')}")
@@ -64,8 +65,8 @@ def _build_discovered_panel(state):
     lines=[]
     if rows:
         for item in rows:
-            timestamp=getattr(item, 'first_seen_at', '--:--:--'); source=getattr(item, 'source', ''); name=getattr(item, 'name', '')
-            lines.append(Text.assemble((timestamp, 'cyan'), ('  ', 'cyan'), (f'{source:<5}', 'blue'), ('  ', 'cyan'), (name, 'bold white')))
+            timestamp=getattr(item, 'first_seen_at', '--:--:--'); name=getattr(item, 'name', '')
+            lines.append(Text.assemble((timestamp, 'cyan'), ('  ', 'cyan'), (name, 'bold white')))
     else:
         msg='potfile not detected yet' if not state.current_potfile_path and not state.discovered_names_by_source else 'waiting for discovered names…'
         lines.append(Text(msg, style='dim'))
@@ -76,9 +77,12 @@ def _build_discovered_panel(state):
 
 def _discovered_source_label(state):
     if len(state.discovered_names_by_source) > 1:
-        return 'mixed'
+        return ','.join(sorted(state.discovered_names_by_source))
     if len(state.discovered_names_by_source) == 1:
-        return next(iter(state.discovered_names_by_source))
+        only=next(iter(state.discovered_names_by_source))
+        if only == 'nsec3' and state.current_potfile_path:
+            return state.current_potfile_path.split('/')[-1]
+        return only
     if state.current_potfile_path:
         return state.current_potfile_path.split('/')[-1]
     return 'none'

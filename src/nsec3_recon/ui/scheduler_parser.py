@@ -65,3 +65,46 @@ def parse_scheduler_line(line: str) -> SchedulerParseResult:
     if 'cooldown' in kv:
         a,b = _split_required(kv['cooldown']); data['cooldown_current'] = a; data['cooldown_required'] = b
     return SchedulerParseResult(True, text, data)
+
+def _first(record, *keys):
+    for key in keys:
+        if key in record and record[key] is not None:
+            return record[key]
+    return None
+
+def normalize_scheduler_record(record: dict) -> SchedulerParseResult | None:
+    """Normalize scheduler jobs.jsonl records into dashboard slice data.
+
+    jobs.jsonl is preferred for aggregation because it can include warm-up and
+    other non-adaptive runs whose stdout line format may differ from adaptive
+    slice output. Records without an arm and at least one scheduler-run metric
+    are ignored as metadata/status records.
+    """
+    if not isinstance(record, dict):
+        return None
+    arm = _first(record, 'arm', 'arm_name', 'arm_type')
+    has_new = any(k in record for k in ('new', 'new_discoveries', 'discoveries'))
+    has_metric = has_new or any(k in record for k in ('reward', 'score', 'score_after', 'runtime', 'runtime_seconds', 'actual_runtime_seconds'))
+    if not arm or not has_metric:
+        return None
+    phase = _first(record, 'phase', 'schedule')
+    if not phase and record.get('warmup') is True:
+        phase = 'warmup'
+    data = {
+        'phase': phase or 'unknown',
+        'slice_index': _to_int(_first(record, 'slice_index', 'slice', 'index')),
+        'total_slices': _to_int(_first(record, 'total_slices', 'slices')),
+        'schedule_name': _first(record, 'schedule', 'phase') or 'jobs_jsonl',
+        'arm': str(arm),
+        'reason': _first(record, 'reason'),
+        'new': _to_int(_first(record, 'new', 'new_discoveries', 'discoveries')) if has_new else 0,
+        'total': _to_int(_first(record, 'total', 'total_discoveries')),
+        'reward': _to_float(_first(record, 'reward')),
+        'score_before': _to_float(_first(record, 'score_before')),
+        'score_after': _to_float(_first(record, 'score_after', 'score')),
+        'runtime_seconds': _to_float(_first(record, 'runtime_seconds', 'actual_runtime_seconds', 'runtime')),
+        'source': 'jobs_jsonl',
+        'job_id': _first(record, 'job_id', 'id', 'uuid'),
+        'raw_record': record,
+    }
+    return SchedulerParseResult(True, '', data)

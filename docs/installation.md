@@ -348,3 +348,5 @@ scripts/prepare-assets.sh
 ```
 
 By default `assets/models/` may contain symlinks into `deps/src/nsec3-candidate-scheduler/models/`; this is expected and avoids duplicating generated model files.
+
+Dashboard scheduler aggregation prefers `scheduler/jobs.jsonl` when available so warm-up slices are included in arm Total and Runs; stdout parsing remains a live fallback. Discovered names rows display only timestamp and name, with source summarized in the panel footer.

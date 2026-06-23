@@ -178,7 +178,8 @@ def test_discovered_names_have_timestamps():
     s=DashboardState('example.nl','/tmp/ws'); s.current_potfile_path='/tmp/ws/scheduler/run.pot'; s.add_discovered_names(['api'], source='nsec3', method='hashcat_potfile')
     out=_render_text(s)
     import re
-    assert re.search(r'\d{2}:\d{2}:\d{2}\s+nsec3\s+api', out)
+    assert re.search(r'\d{2}:\d{2}:\d{2}\s+api', out)
+    assert not re.search(r'\d{2}:\d{2}:\d{2}\s+nsec3\s+api', out)
 
 def test_discovered_names_panel_prominent():
     s=DashboardState('example.nl','/tmp/ws')
@@ -191,7 +192,7 @@ def test_discovered_names_render_timestamp_spacing():
     s.discovered_names_recent.append(DiscoveredName(name='www', source='nsec3', method='hashcat_potfile', first_seen_at='21:07:22'))
     s.discovered_names_count=1
     out=_render_text(s)
-    assert '21:07:22  nsec3  www' in out or '21:07:22  www' in out
+    assert '21:07:22  www' in out
     assert '21:07:22www' not in out
 
 def test_dashboard_refresh_rate_default_is_low():
@@ -357,3 +358,90 @@ def test_arm_last_new_is_latest_slice_new():
         s.update_slice({'slice_index':i,'arm':'arm-a','new':new})
     assert s.arm_stats['arm-a'].total_new == 10
     assert s.arm_stats['arm-a'].last_new == 7
+
+def test_arm_stats_include_warmup_records_from_jobs_jsonl():
+    from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record
+    s=DashboardState('example.nl','/tmp/ws')
+    for record in (
+        {'phase':'warmup','arm':'dict/seclists','new':10,'reward':1.0,'score_after':0.5,'runtime_seconds':5},
+        {'phase':'adaptive','arm':'dict/seclists','new':3,'reward':0.3,'score_after':0.4,'runtime_seconds':5},
+    ):
+        s.update_slice(normalize_scheduler_record(record).data)
+    arm=s.arm_stats['dict/seclists']
+    assert arm.run_count == 2 and arm.total_new == 13 and arm.last_new == 3 and arm.last_score == 0.4
+
+def test_arm_stats_do_not_exclude_phase_warmup():
+    from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record
+    s=DashboardState('example.nl','/tmp/ws')
+    s.update_slice(normalize_scheduler_record({'phase':'warmup','arm':'dict/a','new':2,'runtime_seconds':1}).data)
+    assert s.arm_stats['dict/a'].total_new == 2
+
+def test_jobs_jsonl_global_total_not_used_as_arm_total():
+    from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record
+    s=DashboardState('example.nl','/tmp/ws')
+    s.update_slice(normalize_scheduler_record({'phase':'warmup','arm':'dict/a','new':2,'total':999}).data)
+    assert s.arm_stats['dict/a'].total_new == 2
+
+def test_last_previous_completed_slice_include_warmup():
+    from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record
+    s=DashboardState('example.nl','/tmp/ws')
+    s.update_slice(normalize_scheduler_record({'phase':'warmup','slice':1,'arm':'dict/a','new':2}).data)
+    s.update_slice(normalize_scheduler_record({'phase':'warmup','slice':2,'arm':'dict/b','new':3}).data)
+    assert s.previous_completed_slice['phase'] == 'warmup' and s.last_completed_slice['phase'] == 'warmup'
+
+def test_jobs_jsonl_tail_processes_new_records_once(tmp_path):
+    import json
+    p=tmp_path/'scheduler'/'jobs.jsonl'; p.parent.mkdir()
+    p.write_text(json.dumps({'phase':'warmup','slice':1,'arm':'dict/a','new':2})+'\n')
+    d=RichDashboard('example.nl', tmp_path, potfile_poll_interval_seconds=0)
+    d.poll_external_sources(); d.poll_external_sources()
+    assert d.state.arm_stats['dict/a'].total_new == 2
+    with p.open('a') as f: f.write(json.dumps({'phase':'warmup','slice':2,'arm':'dict/a','new':3})+'\n')
+    d.poll_external_sources()
+    assert d.state.arm_stats['dict/a'].total_new == 5
+
+def test_stdout_and_jobs_jsonl_do_not_double_count_same_slice(tmp_path):
+    import json
+    d=RichDashboard('example.nl', tmp_path, potfile_poll_interval_seconds=0)
+    raw='[1/150] adaptive arm-a reason=x new=3 total=10 reward=1.0 score=0.1->0.2 runtime=1.0s'
+    d.handle_event(PipelineEvent('now','scheduler','info','stdout',raw,{}))
+    p=tmp_path/'scheduler'/'jobs.jsonl'; p.parent.mkdir()
+    p.write_text(json.dumps({'phase':'adaptive','slice':1,'arm':'arm-a','new':3,'total':10,'reward':1.0,'score_after':0.2,'runtime_seconds':1.0})+'\n')
+    d.poll_external_sources()
+    assert d.state.arm_stats['arm-a'].total_new == 3
+
+def test_jobs_jsonl_record_normalizer_tolerates_field_variants():
+    from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record
+    a=normalize_scheduler_record({'phase':'warmup','arm_name':'a','new_discoveries':4,'runtime':2,'score':0.7}).data
+    b=normalize_scheduler_record({'warmup':True,'arm':'b','discoveries':5,'actual_runtime_seconds':3,'score_after':0.8}).data
+    assert a['arm']=='a' and a['new']==4 and a['runtime_seconds']==2 and a['score_after']==0.7
+    assert b['phase']=='warmup' and b['new']==5 and b['runtime_seconds']==3 and b['score_after']==0.8
+
+def test_discovered_names_renderer_shows_name_not_source():
+    from nsec3_recon.ui.dashboard_state import DiscoveredName
+    s=DashboardState('example.nl','/tmp/ws')
+    s.discovered_names_recent.append(DiscoveredName(name='loting', source='nsec3', method='hashcat_potfile', first_seen_at='07:12:02'))
+    s.discovered_names_count=1; s.discovered_names_by_source={'nsec3':1}
+    out=_render_text(s)
+    assert '07:12:02  loting' in out
+    assert '07:12:02  nsec3' not in out
+
+def test_discovered_names_no_source_column_by_default():
+    s=DashboardState('example.nl','/tmp/ws'); s.add_discovered_names(['loting'], source='nsec3')
+    out=_render_text(s)
+    assert 'source' not in out.split('Discovered names', 1)[1].split('total=', 1)[0].lower()
+
+def test_discovered_names_footer_summarizes_source():
+    s=DashboardState('example.nl','/tmp/ws'); s.current_potfile_path='/tmp/ws/scheduler/run.pot'; s.add_discovered_names(['loting'], source='nsec3')
+    assert 'source: run.pot' in _render_text(s)
+
+def test_discovered_names_mixed_source_footer():
+    s=DashboardState('example.nl','/tmp/ws'); s.add_discovered_names(['a'], source='axfr'); s.add_discovered_names(['b'], source='nsec3')
+    out=_render_text(s)
+    assert 'source: axfr,nsec3' in out
+
+def test_discovered_name_column_has_width():
+    long='very-long-discovered-name-that-should-remain-visible.example.nl'
+    s=DashboardState('example.nl','/tmp/ws'); s.add_discovered_names([long], source='nsec3')
+    out=_render_text(s)
+    assert 'very-long-discovered-name' in out

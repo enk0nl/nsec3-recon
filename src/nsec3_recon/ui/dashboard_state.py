@@ -33,7 +33,7 @@ class ArmStats:
     run_count: int = 0; last_seen_slice: int | None = None; last_reason: str | None = None
     total_new: int = 0; last_new: int = 0; total_reward: float = 0.0; last_reward: float = 0.0
     total_runtime: float = 0.0; last_runtime: float = 0.0; last_score: float | None = None
-    active: bool = False; last_queue_before: int | None = None; last_queue_after: int | None = None
+    active: bool = False; last_queue_before: int | None = None; last_queue_after: int | None = None; last_phase: str | None = None
     score_history: deque = field(default_factory=lambda: deque(maxlen=30)); reward_history: deque = field(default_factory=lambda: deque(maxlen=30))
     @property
     def avg_new(self): return self.total_new / self.run_count if self.run_count else 0
@@ -52,6 +52,7 @@ class DashboardState:
         self.arm_stats={}; self.recent_activity=deque(maxlen=80); self.recent_scheduler_messages=deque(maxlen=80)
         self.discovered_names_recent=deque(maxlen=200); self.discovered_names_seen=set(); self.discovered_names_count=0; self.discovered_names_by_source={}
         self.current_potfile_path=None; self.last_scheduler_stdout=None; self.last_scheduler_stderr=None; self.scheduler_runtime_started_at=None
+        self.processed_scheduler_records={}
     @property
     def recovered_candidates(self): return self.discovered_names_recent
     @property
@@ -104,17 +105,29 @@ class DashboardState:
         if event.stage=='nsec3map':
             return 'nsec3map_detect' if 'detect' in event.event else 'nsec3map_enumeration'
         return event.stage
+    def _scheduler_record_key(self, data):
+        if data.get('job_id'):
+            return ('job', data.get('job_id'))
+        return (data.get('slice_index'), data.get('arm'), data.get('new'), data.get('reward'), data.get('runtime_seconds'))
     def update_slice(self, data):
-        self.previous_completed_slice=self.last_completed_slice; self.last_completed_slice=dict(data); self.slice_history.append(dict(data)); self.scheduler_started=True
-        arm=data.get('arm') or 'unknown'
+        record=dict(data); key=self._scheduler_record_key(record)
+        if key in self.processed_scheduler_records:
+            # Avoid double-counting when stdout fallback and jobs.jsonl report the same run.
+            if record.get('source') == 'jobs_jsonl':
+                self.processed_scheduler_records[key] = record
+            return False
+        self.processed_scheduler_records[key]=record
+        self.previous_completed_slice=self.last_completed_slice; self.last_completed_slice=record; self.slice_history.append(record); self.scheduler_started=True
+        arm=record.get('arm') or 'unknown'
         for a in self.arm_stats.values(): a.active=False
         st=self.arm_stats.setdefault(arm, ArmStats(arm)); st.active=True; st.run_count+=1
-        st.last_seen_slice=data.get('slice_index'); st.last_reason=data.get('reason')
-        st.last_new=data.get('new') or 0; st.total_new += st.last_new
-        st.last_reward=data.get('reward') or 0.0; st.total_reward += st.last_reward; st.reward_history.append(st.last_reward)
-        st.last_runtime=data.get('runtime_seconds') or 0.0; st.total_runtime += st.last_runtime
-        st.last_score=data.get('score_after') if data.get('score_after') is not None else data.get('score_before'); st.score_history.append(st.last_score or 0)
-        st.last_queue_before=data.get('queue_before'); st.last_queue_after=data.get('queue_after')
+        st.last_seen_slice=record.get('slice_index'); st.last_reason=record.get('reason'); st.last_phase=record.get('phase')
+        st.last_new=record.get('new') or 0; st.total_new += st.last_new
+        st.last_reward=record.get('reward') or 0.0; st.total_reward += st.last_reward; st.reward_history.append(st.last_reward)
+        st.last_runtime=record.get('runtime_seconds') or 0.0; st.total_runtime += st.last_runtime
+        st.last_score=record.get('score_after') if record.get('score_after') is not None else record.get('score_before'); st.score_history.append(st.last_score or 0)
+        st.last_queue_before=record.get('queue_before'); st.last_queue_after=record.get('queue_after')
+        return True
     def _normalize_name(self, name):
         return str(name or '').strip().lower().rstrip('.')
     def _handle_discovery_event(self, event, data):
