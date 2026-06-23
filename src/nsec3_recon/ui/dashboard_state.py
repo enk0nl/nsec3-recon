@@ -33,7 +33,7 @@ class ArmStats:
     run_count: int = 0; last_seen_slice: int | None = None; last_reason: str | None = None
     total_new: int = 0; last_new: int = 0; total_reward: float = 0.0; last_reward: float = 0.0
     total_runtime: float = 0.0; last_runtime: float = 0.0; last_score: float | None = None
-    active: bool = False; last_queue_before: int | None = None; last_queue_after: int | None = None; last_phase: str | None = None
+    active: bool = False; exhausted: bool = False; last_queue_before: int | None = None; last_queue_after: int | None = None; last_phase: str | None = None
     score_history: deque = field(default_factory=lambda: deque(maxlen=30)); reward_history: deque = field(default_factory=lambda: deque(maxlen=30))
     @property
     def avg_new(self): return self.total_new / self.run_count if self.run_count else 0
@@ -58,6 +58,8 @@ class DashboardState:
         self.scheduler_total_slices=scheduler_total_slices
         self.completed_slices_by_key={}; self.completed_slice_order=[]; self.processed_scheduler_records={}
         self.nsec3_hash_total=0; self.nsec3_hash_cracked=0; self.latest_stdout_slice_debug=None
+        self.last_scheduled_arm=None
+        self.osint_status={}; self.emitted_osint_status_events=set()
     @property
     def recovered_candidates(self): return self.discovered_names_recent
     @property
@@ -69,7 +71,10 @@ class DashboardState:
     @property
     def elapsed_seconds(self): return time.time()-self.started_at
     def add_activity(self, message, level='info'):
-        if message: self.recent_activity.append({'ts': time.time(), 'level': level, 'message': str(message)[:180]})
+        if not message:
+            return False
+        self.recent_activity.append({'ts': time.time(), 'level': level, 'message': str(message)[:180]})
+        return True
     def handle_event(self, event):
         self.event_count += 1
         if event.level == 'warning': self.warnings_count += 1
@@ -114,6 +119,52 @@ class DashboardState:
         if event.stage=='nsec3map':
             return 'nsec3map_detect' if 'detect' in event.event else 'nsec3map_enumeration'
         return event.stage
+
+    def update_osint_status(self, data):
+        if not data or data.get('type') != 'osint_status':
+            return False
+        arm=data.get('arm') or 'osint/unknown'; event=data.get('event') or 'completed'; status=data.get('status') or ('running' if event == 'started' else 'unknown')
+        tool=data.get('tool') or str(arm).rsplit('/', 1)[-1]
+        current=self.osint_status.setdefault(tool, {'started_at': None, 'completed_at': None})
+        terminal_status = current.get('status') in {'ready','exhausted','failed'}
+        if event == 'started':
+            key=(arm,'started')
+            if terminal_status:
+                return False
+            if key in self.emitted_osint_status_events:
+                return False
+            current.update({'tool': tool, 'status': 'running', 'started_at': current.get('started_at') or datetime.now().strftime('%H:%M:%S')})
+            self.emitted_osint_status_events.add(key)
+            self.add_activity(self._format_osint_status_activity(data), 'info')
+            return True
+        current.update({k: data.get(k) for k in ('tool','status','raw_count','candidate_count','rejected_count','exit_code','reason','wordlist','raw_names') if k in data})
+        if status in {'ready','exhausted','failed'}:
+            current['completed_at']=datetime.now().strftime('%H:%M:%S')
+        key=(arm,'completed',status,data.get('raw_count'),data.get('candidate_count'),data.get('rejected_count'),data.get('reason'),data.get('wordlist'),data.get('raw_names'),data.get('exit_code'))
+        if key in self.emitted_osint_status_events:
+            return False
+        self.emitted_osint_status_events.add(key)
+        self.add_activity(self._format_osint_status_activity(data), 'error' if status == 'failed' else 'info')
+        return True
+
+    def _format_osint_status_activity(self, data):
+        arm=data.get('arm') or 'osint/unknown'; tool=data.get('tool') or str(arm).rsplit('/', 1)[-1]
+        event=data.get('event') or 'completed'; status=data.get('status') or ('running' if event == 'started' else 'completed'); count=data.get('candidate_count')
+        if event == 'started':
+            return f"[osint] {tool} started"
+        if status == 'failed':
+            parts=[]
+            if data.get('exit_code') is not None: parts.append(f"exit_code={data.get('exit_code')}")
+            if data.get('reason'): parts.append(f"reason={data.get('reason')}")
+            suffix = ': ' + ' '.join(parts) if parts else ''
+            return f"[osint] {tool} failed{suffix}"
+        if status == 'exhausted':
+            return f"[osint] {tool} exhausted: no candidate names"
+        if count is None:
+            return f"[osint] {tool} completed"
+        if int(count) > 0:
+            return f"[osint] {tool} completed: {int(count)} candidate names ready"
+        return f"[osint] {tool} completed: no candidate names"
     def _scheduler_fallback_key(self, data):
         return (data.get('slice_index') or data.get('job_id'), data.get('arm'), data.get('new'), data.get('reward'), data.get('runtime_seconds'))
     def _scheduler_record_key(self, data):
@@ -149,6 +200,7 @@ class DashboardState:
         self.completed_slices_by_key[key]=record; self.completed_slice_order.append(key)
         self._recompute_last_previous(); self.slice_history.append(record); self.scheduler_started=True
         arm=record.get('arm') or 'unknown'
+        self.last_scheduled_arm=arm
         for a in self.arm_stats.values(): a.active=False
         st=self.arm_stats.setdefault(arm, ArmStats(arm)); st.active=True; st.run_count+=1
         st.last_seen_slice=record.get('slice_index') or record.get('job_id'); st.last_reason=record.get('reason'); st.last_phase=record.get('phase')
@@ -157,6 +209,7 @@ class DashboardState:
         st.last_runtime=record.get('runtime_seconds') or 0.0; st.total_runtime += st.last_runtime
         st.last_score=record.get('score_after') if record.get('score_after') is not None else record.get('score_before'); st.score_history.append(st.last_score or 0)
         st.last_queue_before=record.get('queue_before'); st.last_queue_after=record.get('queue_after')
+        if record.get('exhausted') is True: st.exhausted=True
         self._update_hash_progress(record)
         return True
     def _recompute_last_previous(self):

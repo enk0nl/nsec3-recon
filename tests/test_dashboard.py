@@ -171,11 +171,32 @@ def test_arm_stats_numeric_formatting():
     out=_render_text(s)
     assert '1.23' in out and '3.5s' in out
 
-def test_arm_stats_limits_rows_and_reports_more():
+def test_arm_table_uses_available_vertical_space():
+    from nsec3_recon.ui.widgets import _build_arm_panel
+    from rich.console import Console
     s=DashboardState('example.nl','/tmp/ws')
     for i in range(12): s.update_slice({'slice_index':i+1,'arm':f'arm-{i}','new':i,'reward':float(i),'runtime_seconds':1.0})
-    out=_render_text(s)
+    console=Console(record=True, width=160, color_system=None)
+    console.print(_build_arm_panel(s, max_rows=12))
+    out=console.export_text()
+    for i in range(12): assert f'arm-{i}' in out
+    assert 'more arms' not in out
+
+def test_arm_table_more_footer_only_when_hidden():
+    from nsec3_recon.ui.widgets import _build_arm_panel
+    from rich.console import Console
+    s=DashboardState('example.nl','/tmp/ws')
+    for i in range(12): s.update_slice({'slice_index':i+1,'arm':f'arm-{i}','new':i,'reward':float(i),'runtime_seconds':1.0})
+    console=Console(record=True, width=160, color_system=None); console.print(_build_arm_panel(s, max_rows=8)); out=console.export_text()
     assert '+4 more arms' in out
+    console=Console(record=True, width=160, color_system=None); console.print(_build_arm_panel(s, max_rows=12)); out=console.export_text()
+    assert 'more arms' not in out
+
+def test_arm_table_max_rows_increases_with_terminal_height():
+    from nsec3_recon.ui.widgets import compute_arm_table_max_rows
+    assert compute_arm_table_max_rows(50) > 8
+    assert compute_arm_table_max_rows(40) > 8
+    assert compute_arm_table_max_rows(34) == 10
 
 def test_discovered_names_have_timestamps():
     s=DashboardState('example.nl','/tmp/ws'); s.current_potfile_path='/tmp/ws/scheduler/run.pot'; s.add_discovered_names(['api'], source='nsec3', method='hashcat_potfile')
@@ -736,3 +757,465 @@ def test_scheduler_record_key_uses_job_prefix_consistently():
     from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record
     r=normalize_scheduler_record({'job_id':1,'phase':'warmup','arm':'dict/seclists','shared_new_cracks':105})
     assert r.data['record_key'] == 'job:1'
+
+def test_parse_osint_subfinder_ready_from_stdout():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_status_line
+    d=parse_osint_status_line('[osint] osint/subfinder completed status=ready raw=627 candidates=627 wordlist=/tmp/subfinder.txt')
+    assert d['arm']=='osint/subfinder' and d['tool']=='subfinder' and d['status']=='ready'
+    assert d['raw_count']==627 and d['candidate_count']==627 and d['wordlist']=='/tmp/subfinder.txt'
+
+def test_parse_osint_amass_ready_from_stdout():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_status_line
+    d=parse_osint_status_line('[osint] osint/amass completed status=ready raw=157 candidates=156 wordlist=/tmp/candidates.txt')
+    assert d['arm']=='osint/amass' and d['tool']=='amass' and d['status']=='ready'
+    assert d['raw_count']==157 and d['candidate_count']==156 and d['wordlist']=='/tmp/candidates.txt'
+
+def test_parse_osint_exhausted_from_stdout():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_status_line
+    d=parse_osint_status_line('[osint] osint/amass completed status=exhausted raw=0 candidates=0 reason=no_candidates')
+    assert d['arm']=='osint/amass' and d['tool']=='amass' and d['status']=='exhausted'
+    assert d['raw_count']==0 and d['candidate_count']==0 and d['reason']=='no_candidates'
+
+def test_parse_osint_failed_from_stdout():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_status_line
+    d=parse_osint_status_line('[osint] osint/amass completed status=failed exit_code=1 reason=timeout')
+    assert d['status']=='failed' and d['exit_code']==1 and d['reason']=='timeout'
+
+def test_osint_completion_updates_recent_activity():
+    s=DashboardState('example.nl','/tmp/ws')
+    s.update_osint_status({'type':'osint_status','arm':'osint/subfinder','status':'ready','candidate_count':76})
+    text='\n'.join(a['message'] for a in s.recent_activity)
+    assert '[osint] subfinder completed' in text and '76 candidate names ready' in text
+
+def test_osint_exhausted_updates_recent_activity():
+    s=DashboardState('example.nl','/tmp/ws')
+    s.update_osint_status({'type':'osint_status','arm':'osint/amass','status':'exhausted','candidate_count':0})
+    assert '[osint] amass exhausted' in '\n'.join(a['message'] for a in s.recent_activity)
+
+def test_osint_completion_not_repeated():
+    s=DashboardState('example.nl','/tmp/ws'); ev={'type':'osint_status','arm':'osint/subfinder','status':'ready','candidate_count':76}
+    s.update_osint_status(ev); s.update_osint_status(ev)
+    assert sum('[osint] subfinder completed' in a['message'] for a in s.recent_activity)==1
+
+def test_osint_candidate_names_not_added_to_discovered_names():
+    s=DashboardState('example.nl','/tmp/ws')
+    before=s.discovered_names_count
+    s.update_osint_status({'type':'osint_status','arm':'osint/subfinder','status':'ready','candidate_count':76})
+    assert s.discovered_names_count == before
+
+
+def test_parse_osint_ignores_non_osint_lines():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_status_line
+    assert parse_osint_status_line('[6/150] adaptive osint/subfinder reason=first_run_ready new=69 runtime=1.0s') is None
+
+def test_osint_completion_uses_candidate_names_ready_not_discovered_names():
+    s=DashboardState('example.nl','/tmp/ws')
+    s.update_osint_status({'type':'osint_status','arm':'osint/subfinder','tool':'subfinder','status':'ready','candidate_count':627})
+    text='\n'.join(a['message'] for a in s.recent_activity)
+    assert 'candidate names ready' in text
+    assert 'discovered names' not in text
+
+def test_osint_amass_completion_from_stdout_log(tmp_path):
+    from nsec3_recon.ui.rich_dashboard import RichDashboard
+    sched=tmp_path/'scheduler'; sched.mkdir()
+    (sched/'stdout.log').write_text('[osint] osint/amass completed status=ready raw=157 candidates=156 wordlist=/tmp/candidates.txt\n')
+    d=RichDashboard('example.nl', tmp_path, potfile_poll_interval_seconds=0)
+    d.poll_external_sources()
+    text='\n'.join(a['message'] for a in d.state.recent_activity)
+    assert '[osint] amass completed: 156 candidate names ready' in text
+
+def test_osint_completion_dedupes_event_stream_and_stdout_log(tmp_path):
+    from nsec3_recon.events import PipelineEvent
+    from nsec3_recon.ui.rich_dashboard import RichDashboard
+    line='[osint] osint/subfinder completed status=ready raw=627 candidates=627 wordlist=/tmp/candidates.txt'
+    sched=tmp_path/'scheduler'; sched.mkdir(); (sched/'stdout.log').write_text(line+'\n')
+    d=RichDashboard('example.nl', tmp_path, potfile_poll_interval_seconds=0)
+    d.handle_event(PipelineEvent('now','scheduler','info','stdout',line,{}))
+    d.poll_external_sources()
+    assert sum('[osint] subfinder completed' in a['message'] for a in d.state.recent_activity)==1
+
+def test_parse_osint_subfinder_ready_from_stdout_line():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_status_lines
+    records=parse_osint_status_lines('[osint] osint/subfinder completed status=ready raw=627 candidates=627 wordlist=/tmp/candidates.txt')
+    assert len(records)==1
+    d=records[0]
+    assert d['tool']=='subfinder' and d['arm']=='osint/subfinder' and d['status']=='ready'
+    assert d['raw_count']==627 and d['candidate_count']==627 and d['wordlist']=='/tmp/candidates.txt'
+
+def test_parse_osint_amass_ready_from_stdout_line():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_status_lines
+    d=parse_osint_status_lines('[osint] osint/amass completed status=ready raw=157 candidates=156 wordlist=/tmp/candidates.txt')[0]
+    assert d['tool']=='amass' and d['arm']=='osint/amass' and d['status']=='ready'
+    assert d['raw_count']==157 and d['candidate_count']==156
+
+def test_parse_osint_from_single_chunk_with_scheduler_lines():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_status_lines
+    chunk='[1/150] warmup dict/seclists runtime=18.5s [osint] osint/subfinder completed status=ready raw=627 candidates=627 wordlist=/tmp/subfinder.txt [3/150] warmup dict/nsec_data runtime=1.7s [osint] osint/amass completed status=ready raw=157 candidates=156 wordlist=/tmp/amass.txt'
+    records=parse_osint_status_lines(chunk)
+    assert [r['tool'] for r in records] == ['subfinder', 'amass']
+    assert records[0]['candidate_count']==627 and records[1]['candidate_count']==156
+
+def test_parse_osint_lines_ignores_non_osint_slice():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_status_lines
+    assert parse_osint_status_lines('[6/150] adaptive osint/subfinder reason=first_run_ready new=69 total=206 reward=23.782 score=0.00->3.57 runtime=2.9s') == []
+
+def test_dashboard_tails_scheduler_stdout_log_for_osint_completion(tmp_path):
+    from nsec3_recon.ui.rich_dashboard import RichDashboard
+    sched=tmp_path/'scheduler'; sched.mkdir()
+    d=RichDashboard('example.nl', tmp_path, potfile_poll_interval_seconds=0)
+    (sched/'stdout.log').write_text('[osint] osint/amass completed status=ready raw=157 candidates=156 wordlist=/tmp/amass.txt\n')
+    d.poll_external_sources()
+    text='\n'.join(a['message'] for a in d.state.recent_activity)
+    assert '[osint] amass completed: 156 candidate names ready' in text
+
+def test_dashboard_tails_alternate_scheduler_stdout_log_name(tmp_path):
+    from nsec3_recon.ui.rich_dashboard import RichDashboard
+    sched=tmp_path/'scheduler'; sched.mkdir()
+    (sched/'scheduler.stdout.log').write_text('[osint] osint/subfinder completed status=ready raw=5 candidates=4 wordlist=/tmp/subfinder.txt\n')
+    d=RichDashboard('example.nl', tmp_path, potfile_poll_interval_seconds=0)
+    d.poll_external_sources()
+    assert '[osint] subfinder completed: 4 candidate names ready' in '\n'.join(a['message'] for a in d.state.recent_activity)
+
+def test_dashboard_osint_completion_prefixed_osint():
+    s=DashboardState('example.nl','/tmp/ws')
+    s.update_osint_status({'type':'osint_status','arm':'osint/amass','tool':'amass','status':'ready','candidate_count':1})
+    assert s.recent_activity[-1]['message'].startswith('[osint]')
+
+def test_arm_table_default_max_rows_at_least_16():
+    from nsec3_recon.ui.widgets import ARM_ROW_LIMIT, compute_arm_table_max_rows
+    assert ARM_ROW_LIMIT >= 16
+    assert compute_arm_table_max_rows(50) >= 16
+
+def test_exhausted_arms_are_included():
+    from nsec3_recon.ui.widgets import _build_arm_panel
+    from rich.console import Console
+    s=DashboardState('example.nl','/tmp/ws')
+    s.update_slice({'slice_index':1,'arm':'dict/exhausted','new':2,'reward':1.5,'runtime_seconds':2.0,'score_after':0.3,'exhausted':True})
+    console=Console(record=True, width=160, color_system=None); console.print(_build_arm_panel(s, max_rows=4)); out=console.export_text()
+    assert 'dict/exhausted' in out
+
+def test_exhausted_arms_sorted_after_non_exhausted():
+    from nsec3_recon.ui.widgets import _build_arm_panel
+    from rich.console import Console
+    s=DashboardState('example.nl','/tmp/ws')
+    s.update_slice({'slice_index':1,'arm':'dict/exhausted','new':99,'reward':1.0,'runtime_seconds':1.0,'score_after':10.0,'exhausted':True})
+    s.update_slice({'slice_index':2,'arm':'dict/active','new':1,'reward':1.0,'runtime_seconds':1.0,'score_after':1.0})
+    s.update_slice({'slice_index':3,'arm':'dict/non-exhausted','new':5,'reward':1.0,'runtime_seconds':1.0,'score_after':1.0})
+    console=Console(record=True, width=160, color_system=None); console.print(_build_arm_panel(s, max_rows=5)); out=console.export_text()
+    assert out.index('dict/non-exhausted') < out.index('dict/exhausted')
+
+def test_exhausted_arm_keeps_stats():
+    from nsec3_recon.ui.widgets import _build_arm_panel
+    from rich.console import Console
+    s=DashboardState('example.nl','/tmp/ws')
+    s.update_slice({'slice_index':7,'arm':'dict/exhausted','new':3,'reward':2.5,'runtime_seconds':4.0,'score_after':1.25,'exhausted':True})
+    console=Console(record=True, width=160, color_system=None); console.print(_build_arm_panel(s, max_rows=4)); out=console.export_text()
+    for token in ('dict/exhausted','1','3','2.50','1.25','4.0s','7'):
+        assert token in out
+
+def test_parse_osint_amass_exhausted_with_rejected_and_raw_names():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_events
+    d=parse_osint_events('[osint] osint/amass completed status=exhausted raw=1 candidates=0 rejected=1 reason=no_candidates raw_names=/tmp/raw_names.txt')[0]
+    assert d['event']=='completed' and d['tool']=='amass' and d['status']=='exhausted'
+    assert d['raw_count']==1 and d['candidate_count']==0 and d['rejected_count']==1
+    assert d['reason']=='no_candidates' and d['raw_names']=='/tmp/raw_names.txt'
+
+def test_osint_amass_exhausted_updates_recent_activity():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_events
+    s=DashboardState('example.nl','/tmp/ws')
+    s.update_osint_status(parse_osint_events('[osint] osint/amass completed status=exhausted raw=1 candidates=0 rejected=1 reason=no_candidates raw_names=/tmp/raw_names.txt')[0])
+    text='\n'.join(a['message'] for a in s.recent_activity)
+    assert '[osint] amass exhausted: no candidate names' in text
+    assert 'raw_names=' not in text and '/tmp/raw_names.txt' not in text
+
+def test_osint_ready_updates_recent_activity():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_events
+    s=DashboardState('example.nl','/tmp/ws')
+    s.update_osint_status(parse_osint_events('[osint] osint/subfinder completed status=ready raw=627 candidates=627 wordlist=/tmp/candidates.txt')[0])
+    assert '[osint] subfinder completed: 627 candidate names ready' in '\n'.join(a['message'] for a in s.recent_activity)
+
+def test_osint_lifecycle_four_updates():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_events
+    s=DashboardState('example.nl','/tmp/ws')
+    chunk='[osint] osint/subfinder started subfinder for example.nl [osint] osint/amass started amass enum for example.nl [osint] osint/subfinder completed status=ready raw=627 candidates=627 wordlist=/tmp/candidates.txt [osint] osint/amass completed status=exhausted raw=1 candidates=0 rejected=1 reason=no_candidates raw_names=/tmp/raw_names.txt'
+    for ev in parse_osint_events(chunk):
+        s.update_osint_status(ev)
+    messages=[a['message'] for a in s.recent_activity]
+    assert messages == ['[osint] subfinder started','[osint] amass started','[osint] subfinder completed: 627 candidate names ready','[osint] amass exhausted: no candidate names']
+
+def test_raw_osint_line_not_added_when_parsed():
+    from nsec3_recon.events import PipelineEvent
+    from nsec3_recon.ui.rich_dashboard import RichDashboard
+    d=RichDashboard('example.nl','/tmp/ws')
+    line='[osint] osint/subfinder completed status=ready raw=627 candidates=627 wordlist=/tmp/candidates.txt'
+    d.handle_event(PipelineEvent('now','scheduler','info','stdout',line,{}))
+    text='\n'.join(a['message'] for a in d.state.recent_activity)
+    assert '[osint] subfinder completed: 627 candidate names ready' in text
+    assert 'status=ready raw=' not in text and 'wordlist=' not in text and 'raw_names=' not in text
+
+def test_arm_table_shows_all_arms_when_count_fits_default():
+    out=_render_arm_panel_with_scores([(f'arm_{i}', float(i), False) for i in range(12)])
+    for i in range(12): assert f'arm_{i}' in out
+    assert 'more arms' not in out
+
+def test_arm_table_footer_only_when_hidden():
+    out=_render_arm_panel_with_scores([(f'arm_{i}', float(i), False) for i in range(18)], max_rows=14)
+    assert '+4 more arms' in out
+    out=_render_arm_panel_with_scores([(f'arm_{i}', float(i), False) for i in range(12)], max_rows=14)
+    assert 'more arms' not in out
+
+def test_arm_table_does_not_reserve_footer_when_no_hidden_arms():
+    out=_render_arm_panel_with_scores([(f'arm_{i}', float(i), False) for i in range(12)], max_rows=12)
+    assert 'more arms' not in out
+
+def test_arm_table_sorts_non_exhausted_by_score_desc():
+    out=_render_arm_panel_with_scores([('arm_a',0.5,False),('arm_b',3.0,False),('arm_c',1.2,False)])
+    assert out.index('arm_b') < out.index('arm_c') < out.index('arm_a')
+
+def test_arm_table_groups_exhausted_after_non_exhausted_by_score():
+    out=_render_arm_panel_with_scores([('active_low',0.1,False),('exhausted_high',9.9,True)])
+    assert out.index('active_low') < out.index('exhausted_high')
+
+def test_exhausted_arms_sorted_by_score_within_exhausted_group():
+    out=_render_arm_panel_with_scores([('exhausted_1',1.0,True),('exhausted_4',4.0,True),('exhausted_2',2.0,True)])
+    assert out.index('exhausted_4') < out.index('exhausted_2') < out.index('exhausted_1')
+
+def test_arrow_marks_last_scheduled_arm_not_top_row():
+    out=_render_arm_panel_with_scores([('dict/nsec_data',5.0,False),('brute/alnum-hyphen-len2-7',0.0,False)], last='brute/alnum-hyphen-len2-7')
+    assert out.index('dict/nsec_data') < out.index('brute/alnum-hyphen-len2-7')
+    assert '▶ brute/alnum-hyphen-len2-7' in out
+
+def test_last_scheduled_arm_updates_from_jobs_jsonl():
+    s=DashboardState('example.nl','/tmp/ws')
+    s.update_scheduler_job({'source':'jobs_jsonl','job_id':1,'arm':'feedback/predictive-prefix','new':1})
+    assert s.last_scheduled_arm == 'feedback/predictive-prefix'
+
+
+def _render_arm_panel_with_scores(rows, max_rows=None, last=None):
+    from nsec3_recon.ui.dashboard_state import ArmStats
+    from nsec3_recon.ui.widgets import _build_arm_panel
+    from rich.console import Console
+    s=DashboardState('example.nl','/tmp/ws')
+    for idx,(name,score,exhausted) in enumerate(rows, start=1):
+        st=ArmStats(name=name, run_count=idx, last_seen_slice=idx, total_new=idx, last_new=idx, last_reward=float(idx), last_score=score, total_runtime=float(idx), last_runtime=float(idx), exhausted=exhausted)
+        s.arm_stats[name]=st
+    s.last_scheduled_arm=last
+    console=Console(record=True, width=200, color_system=None)
+    console.print(_build_arm_panel(s, max_rows=max_rows))
+    return console.export_text()
+
+def test_recent_activity_newest_first_respects_limit():
+    from nsec3_recon.ui.widgets import _build_activity_panel
+    from rich.console import Console
+    s=DashboardState('example.nl','/tmp/ws')
+    for i in range(1,21):
+        s.add_activity(f'message {i:02d}')
+    console=Console(record=True, width=120, color_system=None); console.print(_build_activity_panel(s, max_rows=10)); out=console.export_text()
+    for i in range(11,21): assert f'message {i:02d}' in out
+    for i in range(1,11): assert f'message {i:02d}' not in out
+
+def test_recent_activity_not_newest_first():
+    from nsec3_recon.ui.widgets import _build_activity_panel
+    from rich.console import Console
+    s=DashboardState('example.nl','/tmp/ws')
+    for i in range(1,5): s.add_activity(f'msg{i}')
+    console=Console(record=True, width=120, color_system=None); console.print(_build_activity_panel(s, max_rows=4)); out=console.export_text()
+    assert out.index('msg1') < out.index('msg2') < out.index('msg3') < out.index('msg4')
+
+def test_recent_activity_osint_completion_visible_after_start():
+    from nsec3_recon.ui.widgets import _build_activity_panel
+    from rich.console import Console
+    s=DashboardState('example.nl','/tmp/ws')
+    s.add_activity('[osint] subfinder started')
+    s.add_activity('[osint] amass started')
+    for i in range(6): s.add_activity(f'other {i}')
+    s.add_activity('[osint] subfinder completed: 627 candidate names ready')
+    s.add_activity('[osint] amass exhausted: no candidate names')
+    console=Console(record=True, width=140, color_system=None); console.print(_build_activity_panel(s, max_rows=4)); out=console.export_text()
+    assert out.index('[osint] subfinder completed: 627 candidate names ready') < out.index('[osint] amass exhausted: no candidate names')
+    assert '[osint] subfinder started' not in out
+
+def test_add_activity_marks_dashboard_dirty_or_returns_true():
+    s=DashboardState('example.nl','/tmp/ws')
+    assert s.add_activity('new activity') is True
+    assert s.add_activity('') is False
+
+def test_arm_table_default_terminal_shows_12_arms():
+    out=_render_arm_panel_with_scores([(f'arm_{i}', float(i), False) for i in range(12)], max_rows=None)
+    for i in range(12): assert f'arm_{i}' in out
+    assert 'more arms' not in out
+
+def test_arm_table_13_arms_shows_12_plus_1_when_12_fit():
+    out=_render_arm_panel_with_scores([(f'arm_{i}', float(i), False) for i in range(13)], max_rows=12)
+    assert '+1 more arms' in out
+    for i in range(1,13): assert f'arm_{i}' in out
+
+def test_arm_table_14_arms_shows_12_plus_2_when_12_fit():
+    out=_render_arm_panel_with_scores([(f'arm_{i}', float(i), False) for i in range(14)], max_rows=12)
+    assert '+2 more arms' in out
+    for i in range(2,14): assert f'arm_{i}' in out
+
+def test_arm_table_no_blank_capacity_before_more_footer():
+    out=_render_arm_panel_with_scores([(f'arm-{i:02d}', float(i), False) for i in range(15)], max_rows=12)
+    assert '+3 more arms' in out
+    rendered=sum(1 for i in range(15) if f'arm-{i:02d}' in out)
+    assert rendered == 12
+
+def test_exhausted_arms_grouped_at_bottom_but_visible_when_room():
+    out=_render_arm_panel_with_scores([('active_high',5.0,False),('active_low',1.0,False),('exhausted_high',9.0,True),('exhausted_low',0.5,True)], max_rows=4)
+    assert 'more arms' not in out
+    assert out.index('active_high') < out.index('exhausted_high')
+    assert out.index('active_low') < out.index('exhausted_high')
+    assert 'exhausted_low' in out
+
+
+def test_recent_activity_latest_osint_completion_visible():
+    from nsec3_recon.ui.widgets import _build_activity_panel
+    from rich.console import Console
+    s=DashboardState('example.nl','/tmp/ws')
+    for msg in ('[osint] subfinder started','[osint] amass started','[osint] subfinder completed: 627 candidate names ready','[osint] amass exhausted: no candidate names'):
+        s.add_activity(msg)
+    console=Console(record=True, width=140, color_system=None); console.print(_build_activity_panel(s, max_rows=4)); out=console.export_text()
+    assert out.index('[osint] subfinder completed: 627 candidate names ready') < out.index('[osint] amass exhausted: no candidate names')
+
+
+def test_recent_activity_does_not_render_raw_osint_line():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_events
+    from nsec3_recon.ui.widgets import _build_activity_panel
+    from rich.console import Console
+    s=DashboardState('example.nl','/tmp/ws')
+    ev=parse_osint_events('[osint] osint/amass completed status=exhausted raw=1 candidates=0 rejected=1 reason=no_candidates raw_names=/tmp/raw_names.txt')[0]
+    s.update_osint_status(ev)
+    console=Console(record=True, width=140, color_system=None); console.print(_build_activity_panel(s, max_rows=2)); out=console.export_text()
+    assert '[osint] amass exhausted: no candidate names' in out
+    assert 'raw_names=' not in out and '/tmp/raw_names.txt' not in out
+
+
+def test_arm_stats_visible_rows_default_terminal_allows_12():
+    from nsec3_recon.ui.widgets import compute_arm_stats_visible_rows
+    assert compute_arm_stats_visible_rows(console_height=40) >= 12
+
+
+def test_arm_stats_small_terminal_truncates_with_footer():
+    from nsec3_recon.ui.widgets import compute_arm_stats_visible_rows
+    rows=compute_arm_stats_visible_rows(console_height=34)
+    assert rows == 10
+    out=_render_arm_panel_with_scores([(f'zoom-{i:02d}', float(i), False) for i in range(12)], max_rows=rows)
+    assert '+2 more arms' in out
+    rendered=sum(1 for i in range(12) if f'zoom-{i:02d}' in out)
+    assert rendered == 10
+
+
+def test_arm_stats_does_not_silently_clip_hidden_arms():
+    out=_render_arm_panel_with_scores([(f'clip-{i:02d}', float(i), False) for i in range(12)], max_rows=10)
+    assert '+2 more arms' in out
+
+
+def test_arm_stats_exact_fit_no_footer():
+    out=_render_arm_panel_with_scores([(f'exact-{i:02d}', float(i), False) for i in range(12)], max_rows=12)
+    for i in range(12): assert f'exact-{i:02d}' in out
+    assert 'more arms' not in out
+
+
+def test_arm_stats_overflow_footer_count_correct():
+    out=_render_arm_panel_with_scores([(f'overflow-{i:02d}', float(i), False) for i in range(15)], max_rows=12)
+    assert '+3 more arms' in out
+
+
+def test_arm_stats_footer_visible_when_terminal_zoomed():
+    from nsec3_recon.ui.widgets import compute_arm_stats_visible_rows
+    rows=compute_arm_stats_visible_rows(console_height=34)
+    out=_render_arm_panel_with_scores([(f'z-{i:02d}', float(i), False) for i in range(12)], max_rows=rows)
+    assert '+2 more arms' in out
+
+
+def test_arm_stats_sorting_score_order_preserved():
+    out=_render_arm_panel_with_scores([('score_0_5',0.5,False),('score_3_0',3.0,False),('score_1_2',1.2,False)])
+    assert out.index('score_3_0') < out.index('score_1_2') < out.index('score_0_5')
+
+
+def test_arm_stats_arrow_does_not_affect_sort():
+    out=_render_arm_panel_with_scores([('arm_A',5.0,False),('arm_B',1.0,False)], last='arm_B')
+    assert out.index('arm_A') < out.index('arm_B')
+    assert '▶ arm_B' in out
+
+def test_recent_activity_chronological_tail():
+    from nsec3_recon.ui.widgets import RecentActivityPanel
+    from rich.console import Console
+    s=DashboardState('example.nl','/tmp/ws')
+    for i in range(1,21): s.add_activity(f'msg{i:02d}')
+    console=Console(record=True, width=100, height=12, color_system=None); console.print(RecentActivityPanel(s, max_rows=10)); out=console.export_text()
+    for i in range(11,21): assert f'msg{i:02d}' in out
+    for i in range(1,11): assert f'msg{i:02d}' not in out
+    assert out.index('msg11') < out.index('msg20')
+
+def test_recent_activity_long_line_does_not_break_row_budget():
+    from nsec3_recon.ui.widgets import RecentActivityPanel
+    from rich.console import Console
+    s=DashboardState('example.nl','/tmp/ws')
+    s.add_activity('x'*300); s.add_activity('latest')
+    console=Console(record=True, width=60, height=8, color_system=None); console.print(RecentActivityPanel(s, max_rows=2)); out=console.export_text()
+    assert 'latest' in out
+    assert out.count('\n') >= 5
+
+def test_recent_activity_no_fixed_blank_padding():
+    from nsec3_recon.ui.widgets import RecentActivityPanel
+    from rich.console import Console
+    s=DashboardState('example.nl','/tmp/ws'); s.add_activity('only one')
+    console=Console(record=True, width=80, height=12, color_system=None); console.print(RecentActivityPanel(s, max_rows=5)); out=console.export_text()
+    assert 'only one' in out
+    assert out.count('│') >= 4
+
+def test_discovered_names_chronological_tail():
+    from nsec3_recon.ui.widgets import DiscoveredNamesPanel
+    from rich.console import Console
+    s=DashboardState('example.nl','/tmp/ws')
+    s.add_discovered_names([f'name-{i:02d}' for i in range(1,31)], source='nsec3')
+    console=Console(record=True, width=100, height=14, color_system=None); console.print(DiscoveredNamesPanel(s, max_rows=10)); out=console.export_text()
+    for i in range(21,31): assert f'name-{i:02d}' in out
+    for i in range(1,21): assert f'name-{i:02d}' not in out
+    assert out.index('name-21') < out.index('name-30')
+
+def test_discovered_names_long_name_does_not_break_row_budget():
+    from nsec3_recon.ui.widgets import DiscoveredNamesPanel
+    from rich.console import Console
+    s=DashboardState('example.nl','/tmp/ws'); s.add_discovered_names(['very-long-discovered-name-' + 'x'*200], source='nsec3')
+    console=Console(record=True, width=70, height=8, color_system=None); console.print(DiscoveredNamesPanel(s, max_rows=1)); out=console.export_text()
+    assert 'very-long-discovered-name' in out
+    assert out.count('\n') >= 4
+
+def test_discovered_names_no_fixed_blank_padding():
+    from nsec3_recon.ui.widgets import DiscoveredNamesPanel
+    from rich.console import Console
+    s=DashboardState('example.nl','/tmp/ws'); s.add_discovered_names(['one'], source='nsec3')
+    console=Console(record=True, width=80, height=10, color_system=None); console.print(DiscoveredNamesPanel(s, max_rows=5)); out=console.export_text()
+    assert 'one' in out
+    assert out.count('│') >= 4
+
+def test_discovered_names_empty_placeholder():
+    from nsec3_recon.ui.widgets import DiscoveredNamesPanel
+    from rich.console import Console
+    s=DashboardState('example.nl','/tmp/ws')
+    console=Console(record=True, width=80, height=8, color_system=None); console.print(DiscoveredNamesPanel(s, max_rows=5)); out=console.export_text()
+    assert 'potfile not detected yet' in out or 'waiting for discovered names' in out
+
+def test_arm_stats_exact_fit_no_subtitle():
+    out=_render_arm_panel_with_scores([(f'exactfit-{i:02d}', float(i), False) for i in range(12)], max_rows=12)
+    assert 'more arms' not in out
+    for i in range(12): assert f'exactfit-{i:02d}' in out
+
+def test_arm_stats_overflow_subtitle_count():
+    out=_render_arm_panel_with_scores([(f'subtitle-{i:02d}', float(i), False) for i in range(14)], max_rows=12)
+    assert '+2 more arms' in out
+
+def test_arm_stats_small_height_shows_subtitle_before_clipping():
+    from nsec3_recon.ui.widgets import ArmStatisticsPanel
+    from rich.console import Console
+    s=DashboardState('example.nl','/tmp/ws')
+    for i in range(12): s.arm_stats[f'small-{i:02d}']=__import__('nsec3_recon.ui.dashboard_state', fromlist=['ArmStats']).ArmStats(name=f'small-{i:02d}', run_count=1, total_new=i, last_new=i, last_score=float(i))
+    console=Console(record=True, width=120, height=12, color_system=None); console.print(ArmStatisticsPanel(s)); out=console.export_text()
+    assert 'more arms' in out
+
+def test_arm_names_do_not_wrap():
+    out=_render_arm_panel_with_scores([('very/long/arm/name/that/should/not/wrap/across/two/rows',1.0,False)], max_rows=1)
+    assert 'very/long/arm' in out

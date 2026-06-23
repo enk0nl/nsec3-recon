@@ -73,6 +73,65 @@ def _first(record, *keys):
             return record[key]
     return None
 
+
+_OSINT_START_RE = re.compile(r"\[osint\]\s+(?P<arm>osint/(?:subfinder|amass))\s+(?P<event>started|completed)\b")
+_OSINT_BOUNDARY_RE = re.compile(r"\s+(?=(?:\[osint\]\s+osint/(?:subfinder|amass)\s+(?:started|completed)\b|\[\d+/\d+\]))")
+
+def _parse_osint_fragment(fragment: str) -> dict | None:
+    text = (fragment or '').strip()
+    m = _OSINT_START_RE.search(text)
+    if not m:
+        return None
+    try:
+        arm = m.group('arm')
+        event = m.group('event')
+        tool = arm.rsplit('/', 1)[-1]
+        kv_text = text[m.end():]
+        kv = {mm.group('key'): mm.group('value') for mm in _PAIR_RE.finditer(kv_text)}
+        status = kv.get('status')
+        if event == 'started' and status is None:
+            status = 'running'
+        return {
+            'type': 'osint_status',
+            'event': event,
+            'arm': arm,
+            'tool': tool,
+            'status': status,
+            'raw_count': _to_int(_first(kv, 'raw', 'raw_count')),
+            'candidate_count': _to_int(_first(kv, 'candidates', 'candidate_count')),
+            'rejected_count': _to_int(_first(kv, 'rejected', 'rejected_count')),
+            'exit_code': _to_int(kv.get('exit_code')),
+            'reason': kv.get('reason'),
+            'wordlist': kv.get('wordlist'),
+            'raw_names': kv.get('raw_names'),
+            'raw': text,
+            'source': 'stdout',
+        }
+    except Exception:
+        return None
+
+def parse_osint_events(text: str) -> list[dict]:
+    source = text or ''
+    matches = list(_OSINT_START_RE.finditer(source))
+    if not matches:
+        return []
+    out=[]
+    for idx, match in enumerate(matches):
+        next_osint = matches[idx + 1].start() if idx + 1 < len(matches) else len(source)
+        boundary = _OSINT_BOUNDARY_RE.search(source, match.end(), next_osint)
+        end = boundary.start() if boundary else next_osint
+        parsed = _parse_osint_fragment(source[match.start():end])
+        if parsed:
+            out.append(parsed)
+    return out
+
+def parse_osint_status_lines(text: str) -> list[dict]:
+    return parse_osint_events(text)
+
+def parse_osint_status_line(line: str) -> dict | None:
+    parsed = parse_osint_events(line)
+    return parsed[0] if parsed else None
+
 def normalize_scheduler_record(record: dict) -> SchedulerParseResult | None:
     """Normalize scheduler jobs.jsonl records into dashboard slice data.
 

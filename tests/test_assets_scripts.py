@@ -29,9 +29,9 @@ def test_install_script_detects_missing_venv_support():
     text=Path('scripts/install.sh').read_text()+Path('scripts/bootstrap.sh').read_text()
     assert 'ensure_python_venv_available' in text and 'python${PYVER}-venv' in text and 'python3-venv' in text
 
-def test_no_n3map_editable_install_required():
+def test_no_nsec3map_editable_skip_info_in_normal_install_output():
     text=Path('scripts/bootstrap.sh').read_text()
-    assert 'nsec3map editable install is intentionally skipped' in text
+    assert 'nsec3map editable install is intentionally skipped' not in text
 
 def test_opentaal_expected_file_path():
     assert 'deps/src/opentaal-wordlist/wordlist.txt' in Path('docs/installation.md').read_text()
@@ -151,3 +151,39 @@ def test_bootstrap_prepares_models_after_scheduler_clone():
     text=Path('scripts/bootstrap.sh').read_text()
     assert 'nsec3-candidate-scheduler' in text
     assert 'scripts/prepare-assets.sh' in text
+
+
+def test_prepare_seclists_uses_info_prefix_not_long():
+    text=Path('scripts/prepare-seclists.sh').read_text()
+    assert '[info] Preparing SecLists DNS wordlist' in text
+    assert '[long]' not in text
+
+def test_generate_pcfg_uses_info_prefix_not_long():
+    text=Path('scripts/generate-pcfg-wordlist.sh').read_text()
+    assert '[info] Generating PCFG DNS wordlist' in text
+    assert '[long]' not in text
+
+def test_pcfg_skip_does_not_print_long_warning(tmp_path):
+    repo=tmp_path/'repo'; (repo/'Rules/dutch_subdomains').mkdir(parents=True); (repo/'pcfg_guesser.py').write_text('print("x")')
+    out=tmp_path/'assets/wordlists/rfc1035_pcfg_top100000000.txt'; out.parent.mkdir(parents=True); out.write_text('exists')
+    env=os.environ|{'PCFG_REPO':str(repo),'PCFG_OUTPUT':str(out)}
+    cp=subprocess.run(['bash','scripts/generate-pcfg-wordlist.sh'], text=True, capture_output=True, env=env)
+    assert cp.returncode == 0
+    assert '[skip] PCFG wordlist already exists' in cp.stdout
+    assert '[info] Generating PCFG DNS wordlist' not in cp.stdout
+    assert '[long]' not in cp.stdout
+
+def test_opentaal_sparse_checkout_uses_leading_slash():
+    text=Path('scripts/bootstrap.sh').read_text()
+    assert 'sparse_file_pattern="/${sparse_file_pattern}"' in text
+    assert 'git -C "$dir" sparse-checkout set --no-cone "$sparse_file_pattern"' in text
+    assert 'git sparse-checkout set --no-cone wordlist.txt' not in text
+
+def test_dutch_dns_sparse_checkout_uses_leading_slash():
+    text=Path('scripts/bootstrap.sh').read_text()
+    assert 'sparse_file_pattern="/${sparse_file_pattern}"' in text
+    assert 'git sparse-checkout set --no-cone subsubdomains_all_by_occurrance.txt' not in text
+
+def test_seclists_directory_sparse_checkout_unchanged():
+    assert 'git -C "$dir" sparse-checkout set "$sparse_dir"' in Path('scripts/bootstrap.sh').read_text()
+    assert 'Discovery/DNS' in Path('scripts/bootstrap.sh').read_text()

@@ -12,7 +12,7 @@ def test_seclists_sparse_checkout_command_documented():
 
 def test_opentaal_sparse_checkout_command_documented():
     text=Path('docs/installation.md').read_text()+Path('scripts/bootstrap.sh').read_text()
-    assert 'git sparse-checkout set --no-cone wordlist.txt' in text or 'sparse-checkout set --no-cone "$file_path"' in text
+    assert 'git sparse-checkout set --no-cone /wordlist.txt' in text or 'sparse_file_pattern' in text
 
 def test_sparse_checkout_directory_command_for_seclists():
     text=Path('scripts/bootstrap.sh').read_text()
@@ -21,12 +21,12 @@ def test_sparse_checkout_directory_command_for_seclists():
 
 def test_sparse_checkout_file_command_for_opentaal():
     text=Path('scripts/bootstrap.sh').read_text()
-    assert 'git -C "$dir" sparse-checkout set --no-cone "$file_path"' in text
+    assert 'git -C "$dir" sparse-checkout set --no-cone "$sparse_file_pattern"' in text
     assert 'wordlist.txt' in text
 
 def test_sparse_checkout_file_command_for_dutch_dns_wordlists():
     text=Path('scripts/bootstrap.sh').read_text()
-    assert 'git -C "$dir" sparse-checkout set --no-cone "$file_path"' in text
+    assert 'git -C "$dir" sparse-checkout set --no-cone "$sparse_file_pattern"' in text
     assert 'subsubdomains_all_by_occurrance.txt' in text
 
 def test_docs_do_not_recommend_skip_checks():
@@ -204,3 +204,34 @@ def test_docs_explain_nsec3_hash_progress():
     from pathlib import Path
     text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
     assert 'cracked hashes / total hashes' in text and 'hashcatify `hash_count`' in text
+
+
+def test_docs_single_file_sparse_checkout_uses_leading_slash():
+    text=Path('docs/installation.md').read_text()+Path('docs/dependencies.md').read_text()
+    assert 'git sparse-checkout set --no-cone /wordlist.txt' in text
+    assert 'git sparse-checkout set --no-cone /subsubdomains_all_by_occurrance.txt' in text
+
+def test_docs_do_not_recommend_non_slash_single_file_sparse_patterns():
+    text=Path('docs/installation.md').read_text()+Path('docs/dependencies.md').read_text()
+    assert 'git sparse-checkout set --no-cone wordlist.txt' not in text
+    assert 'git sparse-checkout set --no-cone subsubdomains_all_by_occurrance.txt' not in text
+
+def test_docs_warn_seclists_and_pcfg_are_long_running():
+    text=(Path('docs/installation.md').read_text()+Path('docs/dependencies.md').read_text()).lower()
+    assert 'seclists combining can take several minutes' in text
+    assert 'pcfg top 100m generation can take a long time' in text
+
+def test_dashboard_docs_explain_osint_candidate_vs_discovered():
+    text='\n'.join(p.read_text() for p in Path('docs').glob('*.md'))
+    assert 'OSINT returns candidate names' in text
+    assert 'Discovered names are AXFR/NSEC/NSEC3-validated outputs' in text
+
+
+def test_docs_do_not_use_long_prefix():
+    text='\n'.join(p.read_text() for p in Path('docs').glob('*.md'))
+    assert '[long]' not in text
+
+def test_docs_describe_long_running_tasks_with_info_prefix():
+    text=Path('docs/installation.md').read_text()+Path('docs/dependencies.md').read_text()
+    assert '[info] Preparing SecLists DNS wordlist' in text
+    assert '[info] Generating PCFG DNS wordlist' in text

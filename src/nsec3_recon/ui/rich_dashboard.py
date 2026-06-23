@@ -2,7 +2,7 @@ from __future__ import annotations
 import json, threading, time
 from pathlib import Path
 from .dashboard_state import DashboardState
-from .scheduler_parser import normalize_scheduler_record, parse_scheduler_line
+from .scheduler_parser import normalize_scheduler_record, parse_osint_events, parse_scheduler_line
 from .widgets import build_dashboard
 from ..adapters.potfile import PotfileTail
 
@@ -21,6 +21,15 @@ def resolve_dashboard_mode(mode: str='auto', stdout_isatty: bool=False, rich_is_
     avail = rich_available() if rich_is_available is None else rich_is_available
     if mode == 'rich': return 'rich' if avail else 'plain'
     return 'rich' if stdout_isatty and avail else 'plain'
+
+class LineTail:
+    def __init__(self, path):
+        self.path=Path(path); self.offset=0
+    def poll(self):
+        if not self.path.exists(): return []
+        with self.path.open('r', encoding='utf-8', errors='ignore') as f:
+            f.seek(self.offset); lines=f.readlines(); self.offset=f.tell()
+        return [line.rstrip('\n') for line in lines if line.strip()]
 
 class JsonlTail:
     def __init__(self, path):
@@ -52,7 +61,7 @@ def discover_potfile(workspace) -> Path | None:
 
 class RichDashboard:
     def __init__(self, domain='', workspace=None, refresh_per_second=2.0, console=None, potfile_poll_interval_seconds=1.0, scheduler_total_slices=None, verbose: bool = False):
-        self.state=DashboardState(domain, workspace, scheduler_total_slices=scheduler_total_slices, verbose=verbose); self.refresh_per_second=min(float(refresh_per_second), 10.0); self._lock=threading.RLock(); self._stop=threading.Event(); self._thread=None; self._live=None; self._tail=None; self._jobs_tail=None; self._dirty=True
+        self.state=DashboardState(domain, workspace, scheduler_total_slices=scheduler_total_slices, verbose=verbose); self.refresh_per_second=min(float(refresh_per_second), 10.0); self._lock=threading.RLock(); self._stop=threading.Event(); self._thread=None; self._live=None; self._tail=None; self._jobs_tail=None; self._stdout_tail=None; self._dirty=True
         self.console=console; self.potfile_poll_interval_seconds=potfile_poll_interval_seconds; self._last_potfile_poll=0.0
     def start(self):
         from rich.live import Live
@@ -79,10 +88,14 @@ class RichDashboard:
         with self._lock:
             self.state.handle_event(event)
             if event.stage=='scheduler' and event.event=='stdout':
+                osint_events=parse_osint_events(event.message)
+                for osint in osint_events:
+                    if self.state.update_osint_status(osint):
+                        self._dirty=True
                 parsed=parse_scheduler_line(event.message)
                 if parsed.parsed:
                     self.state.latest_stdout_slice_debug = parsed.data
-                else:
+                elif not osint_events:
                     self.state.recent_scheduler_messages.append(parsed.data['message']); self.state.add_activity(parsed.data['message'])
             self._dirty=True
     def poll_external_sources(self):
@@ -97,6 +110,17 @@ class RichDashboard:
             for record in self._jobs_tail.poll():
                 normalized=normalize_scheduler_record(record)
                 if normalized and self.state.update_scheduler_job(normalized.data): self._dirty=True
+        if self._stdout_tail is None:
+            scheduler_dir=Path(self.state.workspace)/'scheduler'
+            for name in ('stdout.log', 'scheduler.stdout.log', 'scheduler_stdout.log'):
+                stdout_path=scheduler_dir/name
+                if stdout_path.exists():
+                    self._stdout_tail=LineTail(stdout_path)
+                    break
+        if self._stdout_tail:
+            for chunk in self._stdout_tail.poll():
+                for osint in parse_osint_events(chunk):
+                    if self.state.update_osint_status(osint): self._dirty=True
         if self._tail is None:
             path=self.state.current_potfile_path or discover_potfile(self.state.workspace)
             if path:
