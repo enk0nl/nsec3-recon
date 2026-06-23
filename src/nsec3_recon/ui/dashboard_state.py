@@ -33,7 +33,7 @@ class ArmStats:
     run_count: int = 0; last_seen_slice: int | None = None; last_reason: str | None = None
     total_new: int = 0; last_new: int = 0; total_reward: float = 0.0; last_reward: float = 0.0
     total_runtime: float = 0.0; last_runtime: float = 0.0; last_score: float | None = None
-    active: bool = False; last_queue_before: int | None = None; last_queue_after: int | None = None; last_phase: str | None = None
+    active: bool = False; exhausted: bool = False; last_queue_before: int | None = None; last_queue_after: int | None = None; last_phase: str | None = None
     score_history: deque = field(default_factory=lambda: deque(maxlen=30)); reward_history: deque = field(default_factory=lambda: deque(maxlen=30))
     @property
     def avg_new(self): return self.total_new / self.run_count if self.run_count else 0
@@ -191,6 +191,7 @@ class DashboardState:
         st.last_runtime=record.get('runtime_seconds') or 0.0; st.total_runtime += st.last_runtime
         st.last_score=record.get('score_after') if record.get('score_after') is not None else record.get('score_before'); st.score_history.append(st.last_score or 0)
         st.last_queue_before=record.get('queue_before'); st.last_queue_after=record.get('queue_after')
+        if record.get('exhausted') is True: st.exhausted=True
         self._update_hash_progress(record)
         return True
     def _recompute_last_previous(self):

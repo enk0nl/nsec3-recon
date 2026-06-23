@@ -74,17 +74,18 @@ def _first(record, *keys):
     return None
 
 
-def parse_osint_status_line(line: str) -> dict | None:
-    text = (line or '').strip()
-    if not text.startswith('[osint]') or ' completed' not in text:
-        return None
-    arm_match = re.search(r'\b(?P<arm>osint/(?:subfinder|amass))\b', text)
-    if not arm_match:
+_OSINT_START_RE = re.compile(r"\[osint\]\s+(?P<arm>osint/(?:subfinder|amass))\s+completed\b")
+_OSINT_BOUNDARY_RE = re.compile(r"\s+(?=(?:\[osint\]\s+osint/(?:subfinder|amass)\s+completed\b|\[\d+/\d+\]))")
+
+def _parse_osint_status_fragment(fragment: str) -> dict | None:
+    text = (fragment or '').strip()
+    m = _OSINT_START_RE.search(text)
+    if not m:
         return None
     try:
-        arm = arm_match.group('arm')
+        arm = m.group('arm')
         tool = arm.rsplit('/', 1)[-1]
-        kv_text = text.split(' completed', 1)[1]
+        kv_text = text[m.end():]
         kv = {mm.group('key'): mm.group('value') for mm in _PAIR_RE.finditer(kv_text)}
         return {
             'type': 'osint_status',
@@ -101,6 +102,25 @@ def parse_osint_status_line(line: str) -> dict | None:
         }
     except Exception:
         return None
+
+def parse_osint_status_lines(text: str) -> list[dict]:
+    source = text or ''
+    matches = list(_OSINT_START_RE.finditer(source))
+    if not matches:
+        return []
+    out=[]
+    for idx, match in enumerate(matches):
+        next_osint = matches[idx + 1].start() if idx + 1 < len(matches) else len(source)
+        boundary = _OSINT_BOUNDARY_RE.search(source, match.end(), next_osint)
+        end = boundary.start() if boundary else next_osint
+        parsed = _parse_osint_status_fragment(source[match.start():end])
+        if parsed:
+            out.append(parsed)
+    return out
+
+def parse_osint_status_line(line: str) -> dict | None:
+    parsed = parse_osint_status_lines(line)
+    return parsed[0] if parsed else None
 
 def normalize_scheduler_record(record: dict) -> SchedulerParseResult | None:
     """Normalize scheduler jobs.jsonl records into dashboard slice data.

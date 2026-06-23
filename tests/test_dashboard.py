@@ -196,7 +196,7 @@ def test_arm_table_max_rows_increases_with_terminal_height():
     from nsec3_recon.ui.widgets import compute_arm_table_max_rows
     assert compute_arm_table_max_rows(50) > 8
     assert compute_arm_table_max_rows(40) > 8
-    assert compute_arm_table_max_rows(34) == 8
+    assert compute_arm_table_max_rows(34) == 10
 
 def test_discovered_names_have_timestamps():
     s=DashboardState('example.nl','/tmp/ws'); s.current_potfile_path='/tmp/ws/scheduler/run.pot'; s.add_discovered_names(['api'], source='nsec3', method='hashcat_potfile')
@@ -833,3 +833,82 @@ def test_osint_completion_dedupes_event_stream_and_stdout_log(tmp_path):
     d.handle_event(PipelineEvent('now','scheduler','info','stdout',line,{}))
     d.poll_external_sources()
     assert sum('[osint] subfinder completed' in a['message'] for a in d.state.recent_activity)==1
+
+def test_parse_osint_subfinder_ready_from_stdout_line():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_status_lines
+    records=parse_osint_status_lines('[osint] osint/subfinder completed status=ready raw=627 candidates=627 wordlist=/tmp/candidates.txt')
+    assert len(records)==1
+    d=records[0]
+    assert d['tool']=='subfinder' and d['arm']=='osint/subfinder' and d['status']=='ready'
+    assert d['raw_count']==627 and d['candidate_count']==627 and d['wordlist']=='/tmp/candidates.txt'
+
+def test_parse_osint_amass_ready_from_stdout_line():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_status_lines
+    d=parse_osint_status_lines('[osint] osint/amass completed status=ready raw=157 candidates=156 wordlist=/tmp/candidates.txt')[0]
+    assert d['tool']=='amass' and d['arm']=='osint/amass' and d['status']=='ready'
+    assert d['raw_count']==157 and d['candidate_count']==156
+
+def test_parse_osint_from_single_chunk_with_scheduler_lines():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_status_lines
+    chunk='[1/150] warmup dict/seclists runtime=18.5s [osint] osint/subfinder completed status=ready raw=627 candidates=627 wordlist=/tmp/subfinder.txt [3/150] warmup dict/nsec_data runtime=1.7s [osint] osint/amass completed status=ready raw=157 candidates=156 wordlist=/tmp/amass.txt'
+    records=parse_osint_status_lines(chunk)
+    assert [r['tool'] for r in records] == ['subfinder', 'amass']
+    assert records[0]['candidate_count']==627 and records[1]['candidate_count']==156
+
+def test_parse_osint_lines_ignores_non_osint_slice():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_status_lines
+    assert parse_osint_status_lines('[6/150] adaptive osint/subfinder reason=first_run_ready new=69 total=206 reward=23.782 score=0.00->3.57 runtime=2.9s') == []
+
+def test_dashboard_tails_scheduler_stdout_log_for_osint_completion(tmp_path):
+    from nsec3_recon.ui.rich_dashboard import RichDashboard
+    sched=tmp_path/'scheduler'; sched.mkdir()
+    d=RichDashboard('example.nl', tmp_path, potfile_poll_interval_seconds=0)
+    (sched/'stdout.log').write_text('[osint] osint/amass completed status=ready raw=157 candidates=156 wordlist=/tmp/amass.txt\n')
+    d.poll_external_sources()
+    text='\n'.join(a['message'] for a in d.state.recent_activity)
+    assert '[osint] amass completed: 156 candidate names ready' in text
+
+def test_dashboard_tails_alternate_scheduler_stdout_log_name(tmp_path):
+    from nsec3_recon.ui.rich_dashboard import RichDashboard
+    sched=tmp_path/'scheduler'; sched.mkdir()
+    (sched/'scheduler.stdout.log').write_text('[osint] osint/subfinder completed status=ready raw=5 candidates=4 wordlist=/tmp/subfinder.txt\n')
+    d=RichDashboard('example.nl', tmp_path, potfile_poll_interval_seconds=0)
+    d.poll_external_sources()
+    assert '[osint] subfinder completed: 4 candidate names ready' in '\n'.join(a['message'] for a in d.state.recent_activity)
+
+def test_dashboard_osint_completion_prefixed_osint():
+    s=DashboardState('example.nl','/tmp/ws')
+    s.update_osint_status({'type':'osint_status','arm':'osint/amass','tool':'amass','status':'ready','candidate_count':1})
+    assert s.recent_activity[-1]['message'].startswith('[osint]')
+
+def test_arm_table_default_max_rows_at_least_16():
+    from nsec3_recon.ui.widgets import ARM_ROW_LIMIT, compute_arm_table_max_rows
+    assert ARM_ROW_LIMIT >= 16
+    assert compute_arm_table_max_rows(50) >= 16
+
+def test_exhausted_arms_are_included():
+    from nsec3_recon.ui.widgets import _build_arm_panel
+    from rich.console import Console
+    s=DashboardState('example.nl','/tmp/ws')
+    s.update_slice({'slice_index':1,'arm':'dict/exhausted','new':2,'reward':1.5,'runtime_seconds':2.0,'score_after':0.3,'exhausted':True})
+    console=Console(record=True, width=160, color_system=None); console.print(_build_arm_panel(s, max_rows=4)); out=console.export_text()
+    assert 'dict/exhausted' in out
+
+def test_exhausted_arms_sorted_after_non_exhausted():
+    from nsec3_recon.ui.widgets import _build_arm_panel
+    from rich.console import Console
+    s=DashboardState('example.nl','/tmp/ws')
+    s.update_slice({'slice_index':1,'arm':'dict/exhausted','new':99,'reward':1.0,'runtime_seconds':1.0,'score_after':10.0,'exhausted':True})
+    s.update_slice({'slice_index':2,'arm':'dict/active','new':1,'reward':1.0,'runtime_seconds':1.0,'score_after':1.0})
+    s.update_slice({'slice_index':3,'arm':'dict/non-exhausted','new':5,'reward':1.0,'runtime_seconds':1.0,'score_after':1.0})
+    console=Console(record=True, width=160, color_system=None); console.print(_build_arm_panel(s, max_rows=5)); out=console.export_text()
+    assert out.index('dict/non-exhausted') < out.index('dict/exhausted')
+
+def test_exhausted_arm_keeps_stats():
+    from nsec3_recon.ui.widgets import _build_arm_panel
+    from rich.console import Console
+    s=DashboardState('example.nl','/tmp/ws')
+    s.update_slice({'slice_index':7,'arm':'dict/exhausted','new':3,'reward':2.5,'runtime_seconds':4.0,'score_after':1.25,'exhausted':True})
+    console=Console(record=True, width=160, color_system=None); console.print(_build_arm_panel(s, max_rows=4)); out=console.export_text()
+    for token in ('dict/exhausted','1','3','2.50','1.25','4.0s','7'):
+        assert token in out

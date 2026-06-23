@@ -53,6 +53,8 @@ def compute_arm_table_max_rows(terminal_height=None):
         return 18
     if terminal_height >= 40:
         return 14
+    if terminal_height >= 32:
+        return 10
     return 8
 
 def _build_arm_panel(state, max_rows=None):
@@ -65,12 +67,17 @@ def _build_arm_panel(state, max_rows=None):
         arms.add_column(col, justify='right', no_wrap=True)
     row_limit = max_rows if max_rows is not None else compute_arm_table_max_rows()
     row_limit = max(1, int(row_limit))
-    sorted_arms=sorted(state.arm_stats.values(), key=lambda a:(not a.active, -a.total_new, -(a.last_score if a.last_score is not None else float('-inf')), -a.run_count))
+    def arm_sort_key(a):
+        score = a.last_score if a.last_score is not None else float('-inf')
+        exhausted_seen = a.last_seen_slice if a.last_seen_slice is not None else -1
+        return (not a.active, bool(getattr(a, 'exhausted', False)), -a.total_new, -(exhausted_seen if getattr(a, 'exhausted', False) else score), -a.run_count)
+    sorted_arms=sorted(state.arm_stats.values(), key=arm_sort_key)
     visible_arms = sorted_arms[:row_limit]
     for a in visible_arms:
         arm_name = shorten_middle(a.name, 30)
         if a.active: arm_name = '▶ ' + arm_name
-        arms.add_row(arm_name, str(a.run_count), str(a.total_new), str(a.last_new), _fmt_float(a.last_reward), _fmt_float(a.last_score), _fmt_runtime(a.avg_runtime), str(a.last_seen_slice or '-'))
+        row_style = 'dim' if getattr(a, 'exhausted', False) and not a.active else None
+        arms.add_row(arm_name, str(a.run_count), str(a.total_new), str(a.last_new), _fmt_float(a.last_reward), _fmt_float(a.last_score), _fmt_runtime(a.avg_runtime), str(a.last_seen_slice or '-'), style=row_style)
     if not sorted_arms:
         arms.add_row('waiting for scheduler slices', '', '', '', '', '', '', '')
     visible_count = max(1, min(len(sorted_arms), row_limit))
