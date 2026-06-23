@@ -6,10 +6,14 @@ NSEC3 Recon orchestrates DNS AXFR checks, DNSSEC probing, NSEC/NSEC3 walking thr
 
 ```bash
 python3 -m pip install -e ".[test]"
-scripts/bootstrap-default.sh --skip-pcfg
+scripts/install.sh
 nsec3-recon example.nl --dry-run
 nsec3-recon example.nl
 ```
+
+## Default namespace scope
+
+The default configuration is tuned for Dutch domains and the `.nl` namespace. It uses Dutch DNS wordlists, OpenTaal Dutch wordlists, and default generator assets selected for `.nl` naming patterns. The NSEC3 extraction and validation pipeline is generic, but results outside the Dutch namespace depend on replacing or extending the candidate sources and scheduler configuration.
 
 ## Boundaries
 
@@ -35,7 +39,7 @@ Scheduler slice lines are emitted after completion, so the dashboard labels thos
 
 Use `--dashboard-refresh-rate FLOAT` to tune the Rich dashboard redraw rate; the default is `2.0` refreshes per second to reduce terminal flicker. Values must be greater than zero and are capped at 10.
 
-Discovered names are outputs found by AXFR zone transfer, NSEC walking, or NSEC3 hashcat potfile cracking; scheduler candidates remain inputs until validated or cracked. The Arm statistics table uses `Total` for total discoveries attributed to an arm (the sum of per-slice `new` values), `Last` for discoveries in the arm's latest completed slice, `R = latest reward`, `Score = latest scheduler score`, and `Seen` for the last completed slice index where the arm ran. The scheduler line field `total` is the global discovered/cracked total and is not used as the per-arm Total.
+Discovered names are outputs found by AXFR zone transfer, NSEC walking, or NSEC3 hashcat potfile cracking; scheduler candidates remain inputs until validated or cracked. The Arm statistics table uses `Total` for total discoveries attributed to an arm (the sum of per-slice `new` values), `Last` for discoveries in the arm's latest completed slice, `R = latest reward`, `Score = latest scheduler score`, and `Seen` for the last scheduler job/slice id where the arm produced a valid, scored `jobs.jsonl` record. `Seen` is a recency/debug field, not a timestamp and not a discovery, candidate, or hash count. The scheduler line field `total` is the global discovered/cracked total and is not used as the per-arm Total.
 
 Dashboard scheduler aggregation prefers `scheduler/jobs.jsonl` when available so warm-up slices are included in arm Total and Runs; stdout parsing remains a live fallback. Discovered names rows display only timestamp and name, with source summarized in the panel footer.
 

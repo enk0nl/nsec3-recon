@@ -123,7 +123,7 @@ Scheduler slice lines are emitted after completion, so the dashboard labels thos
 
 Use `--dashboard-refresh-rate FLOAT` to tune the Rich dashboard redraw rate; the default is `2.0` refreshes per second to reduce terminal flicker. Values must be greater than zero and are capped at 10.
 
-Discovered names are outputs found by AXFR zone transfer, NSEC walking, or NSEC3 hashcat potfile cracking; scheduler candidates remain inputs until validated or cracked. The Arm statistics table uses `Total` for total discoveries attributed to an arm (the sum of per-slice `new` values), `Last` for discoveries in the arm's latest completed slice, `R = latest reward`, `Score = latest scheduler score`, and `Seen` for the last completed slice index where the arm ran. The scheduler line field `total` is the global discovered/cracked total and is not used as the per-arm Total.
+Discovered names are outputs found by AXFR zone transfer, NSEC walking, or NSEC3 hashcat potfile cracking; scheduler candidates remain inputs until validated or cracked. The Arm statistics table uses `Total` for total discoveries attributed to an arm (the sum of per-slice `new` values), `Last` for discoveries in the arm's latest completed slice, `R = latest reward`, `Score = latest scheduler score`, and `Seen` for the last scheduler job/slice id where the arm produced a valid, scored `jobs.jsonl` record. `Seen` is a recency/debug field, not a timestamp and not a discovery, candidate, or hash count. The scheduler line field `total` is the global discovered/cracked total and is not used as the per-arm Total.
 
 Dashboard scheduler aggregation prefers `scheduler/jobs.jsonl` when available so warm-up slices are included in arm Total and Runs; stdout parsing remains a live fallback. Discovered names rows display only timestamp and name, with source summarized in the panel footer.
 
@@ -140,3 +140,45 @@ If a run fails, inspect `events.jsonl`, `logs/listener_errors.log` for dashboard
 If hashcat reports optimized-kernel-specific failures, leave the default `--hashcat-optimized-kernel-failover` enabled so the scheduler can retry once with unoptimized kernels and continue unoptimized. To start unoptimized immediately, run `nsec3-recon example.nl --no-hashcat-optimized-kernels`. To keep optimized kernels enabled and avoid automatic retries, use `--no-hashcat-optimized-kernel-failover`.
 
 `scripts/check-tools.sh` verifies that `nsec3-candidate-scheduler run --help` supports `--no-optimized-kernels`, `--optimized-kernel-failover`, and `--no-optimized-kernel-failover`. If it reports the scheduler is too old, rerun `scripts/bootstrap.sh` or install scheduler ref `bdad139599761cece979eb17aabddf5c00369d7a`.
+
+## Empty Discovered names panel
+
+* Symptom: the dashboard Discovered names panel stays empty after the scheduler starts.
+* Likely cause: no AXFR/NSEC/NSEC3-validated names have been found yet, or no hashcat potfile has been detected.
+* Check command: `find runs/<run> -name '*.pot' -o -name '*.potfile' -o -name 'run.pot'`
+* Fix command: `tail -f runs/<run>/scheduler/jobs.jsonl`
+
+## No hashes loaded
+
+* Symptom: hash progress remains `hashes=0/?` or hashcat reports malformed input.
+* Likely cause: the NSEC3 hashfile is missing, empty, or not in hashcat mode 8300 format.
+* Check command: `wc -l runs/<run>/hashcat/*.hashes 2>/dev/null || true`
+* Fix command: `cat runs/<run>/events.jsonl | jq -r 'select(.stage=="hashcatify")'`
+
+## No discoveries after scheduler starts
+
+* Symptom: scheduler slices run but no new discovered names appear.
+* Likely cause: candidates are inputs and only become discoveries after validation or cracking.
+* Check command: `tail -n 20 runs/<run>/scheduler/jobs.jsonl`
+* Fix command: `nsec3-recon example.nl --disable-osint`
+
+## Missing PCFG assets or use of --skip-pcfg
+
+* Symptom: scheduler preflight reports missing PCFG files, or the PCFG arm is unavailable.
+* Likely cause: `--skip-pcfg` was used during install/bootstrap. That flag is for development, CI shortcuts, or debugging flows that do not require the PCFG generator.
+* Check command: `test -s assets/wordlists/rfc1035_pcfg_top100000000.txt && echo ok || echo missing`
+* Fix command: `scripts/prepare-assets.sh`
+
+## Missing Go OSINT tools
+
+* Symptom: Amass or Subfinder arms fail preflight or are marked unavailable.
+* Likely cause: Go tools are not installed or are not on `PATH`.
+* Check command: `amass -version; subfinder -version`
+* Fix command: `scripts/install.sh --install-go-tools`
+
+## Poor results outside Dutch domains
+
+* Symptom: few or no candidates are productive on a non-Dutch domain.
+* Likely cause: the default candidate sources are tuned for Dutch DNS naming patterns.
+* Check command: `grep -RniE 'dutch|opentaal|pcfg' config assets 2>/dev/null | head`
+* Fix command: add namespace-specific wordlists/generators or adjust the scheduler configuration.

@@ -53,7 +53,7 @@ sudo apt install -y python3-venv
 Quick start with virtualenv activation:
 
 ```bash
-scripts/install.sh --skip-pcfg
+scripts/install.sh
 source .venv/bin/activate
 nsec3-recon --help
 nsec3-recon example.nl --dry-run
@@ -63,15 +63,17 @@ nsec3-recon example.nl
 Alternative without activating the virtualenv:
 
 ```bash
-scripts/install.sh --skip-pcfg
+scripts/install.sh
 .venv/bin/nsec3-recon --help
 .venv/bin/nsec3-recon example.nl --dry-run
 .venv/bin/nsec3-recon example.nl
 ```
 
+The installer downloads the scheduler, nsec3map, SecLists, Dutch DNS wordlists, OpenTaal, and PCFG assets.
+
 The installer checks `ensurepip` before running `python3 -m venv .venv`. It prints exact apt commands and exits non-zero if venv support is missing. It only runs apt commands when invoked with `--install-system-packages`. It installs NSEC3 Recon editable into `.venv`, verifies `.venv/bin/nsec3-recon --help`, calls `scripts/bootstrap.sh`, runs `scripts/check-tools.sh`, and prints next commands.
 
-`--skip-pcfg`, `--skip-seclists`, `--skip-assets`, `--deps-dir`, `--assets-dir`, and `--jobs` are passed through to `scripts/bootstrap.sh`; for example, `scripts/install.sh --skip-pcfg` calls bootstrap with equivalent PCFG skipping behavior.
+Advanced installer options: `--skip-pcfg`, `--skip-seclists`, `--skip-assets`, `--deps-dir`, `--assets-dir`, and `--jobs` are passed through to `scripts/bootstrap.sh`. Use `--skip-pcfg` only for development, CI shortcuts, or debugging flows that do not require the PCFG generator. A normal installation should not use this flag. Runs using configurations that expect the PCFG arm may fail preflight or have reduced functionality if PCFG assets are missing.
 
 ## Using the virtual environment
 

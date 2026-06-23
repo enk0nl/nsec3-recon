@@ -619,10 +619,49 @@ def test_nsec3_progress_uses_hashes_not_unique_names():
     s=DashboardState('example.nl'); s.nsec3_hash_total=123456; s.nsec3_hash_cracked=218; s.discovered_names_count=102
     assert s.nsec3_hash_progress_percent == 100 * 218 / 123456
 
-def test_nsec3_progress_render_contains_hashes_and_names():
+def test_nsec3_progress_render_contains_hashes_without_names_footer_count():
     s=DashboardState('example.nl','/tmp/ws'); s.nsec3_hash_total=123456; s.nsec3_hash_cracked=218; s.discovered_names_count=102
     out=_render_text(s)
-    assert 'hashes=218/123456' in out and 'names=102' in out
+    assert 'hashes=218/123456' in out
+    assert 'names=102' not in out
+    assert 'names=' not in out
+
+
+def test_dashboard_status_line_does_not_include_names_count():
+    from nsec3_recon.ui.widgets import _status_line
+    s=DashboardState('example.nl','/tmp/ws')
+    s.event_count=44; s.warnings_count=0; s.errors_count=0
+    s.nsec3_hash_cracked=600; s.nsec3_hash_total=712
+    s.discovered_names_count=601
+    s.slice_history=[{'slice_index': i} for i in range(23)]
+    text=_status_line(s)
+    for token in (
+        'events=44','warnings=0','errors=0','hashes=600/712','84.3%','parsed_slices=23'
+    ):
+        assert token in text
+    assert 'names=601' not in text
+    assert 'names=' not in text
+
+
+def test_discovered_names_panel_still_shows_names_count():
+    s=DashboardState('example.nl','/tmp/ws')
+    s.add_discovered_names(['one.example.nl','two.example.nl','three.example.nl'], source='nsec3')
+    out=_render_text(s)
+    assert 'Discovered names' in out
+    assert 'total=3' in out
+    for name in ('one.example.nl','two.example.nl','three.example.nl'):
+        assert name in out
+
+
+def test_status_line_handles_unknown_hash_total_without_names():
+    from nsec3_recon.ui.widgets import _status_line
+    s=DashboardState('example.nl','/tmp/ws')
+    s.discovered_names_count=7
+    text=_status_line(s)
+    assert 'hashes=0/?' in text
+    assert 'names=' not in text
+    assert '    ' not in text
+    assert text.startswith('events=') and text.endswith('parsed_slices=0')
 
 def test_total_field_not_used_as_total_slices():
     from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record

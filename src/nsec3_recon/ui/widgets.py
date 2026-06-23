@@ -212,6 +212,17 @@ class RecentActivityPanel:
 def _build_activity_panel(state, max_rows=None):
     return RecentActivityPanel(state, max_rows=max_rows)
 
+
+def _status_line(state):
+    return (
+        f"events={state.event_count}  "
+        f"warnings={state.warnings_count}  "
+        f"errors={state.errors_count}  "
+        f"hashes={state.nsec3_hash_cracked}/{state.nsec3_hash_total or '?'} "
+        f"({_fmt_progress(state.nsec3_hash_progress_percent)})  "
+        f"parsed_slices={len(state.slice_history)}"
+    )
+
 def build_dashboard(state):
     try:
         from rich.layout import Layout
@@ -233,7 +244,7 @@ def build_dashboard(state):
     previous=Panel('\n'.join(_slice_lines(state.previous_completed_slice, state.scheduler_total_slices)), title='Previous completed slice', border_style='cyan')
     arm_panel=_build_arm_panel(state)
     discovered=_build_discovered_panel(state)
-    footer=Panel(f"events={state.event_count}  warnings={state.warnings_count}  errors={state.errors_count}  hashes={state.nsec3_hash_cracked}/{state.nsec3_hash_total or '?'} ({_fmt_progress(state.nsec3_hash_progress_percent)})  names={state.discovered_names_count}  parsed_slices={len(state.slice_history)}", border_style='dim')
+    footer=Panel(_status_line(state), border_style='dim')
     layout=Layout(); layout.split_column(Layout(header,size=3), Layout(name='body'), Layout(footer,size=3))
     layout['body'].split_row(Layout(name='left',ratio=25), Layout(name='center',ratio=45), Layout(discovered,name='right',ratio=30))
     layout['left'].split_column(Layout(pipeline,ratio=3), Layout(_build_activity_panel(state),ratio=2))

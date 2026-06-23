@@ -6,10 +6,14 @@ NSEC3 Recon orchestrates DNS AXFR checks, DNSSEC probing, NSEC/NSEC3 walking thr
 
 ```bash
 python3 -m pip install -e ".[test]"
-scripts/bootstrap-default.sh --skip-pcfg
+scripts/install.sh
 nsec3-recon example.nl --dry-run
 nsec3-recon example.nl
 ```
+
+## Default namespace scope
+
+The default configuration is tuned for Dutch domains and the `.nl` namespace. It uses Dutch DNS wordlists, OpenTaal Dutch wordlists, and default generator assets selected for `.nl` naming patterns. The NSEC3 extraction and validation pipeline is generic, but results outside the Dutch namespace depend on replacing or extending the candidate sources and scheduler configuration.
 
 ## Boundaries
 
