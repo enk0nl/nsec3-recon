@@ -24,7 +24,7 @@ python3 -m pip install -e ".[test]"
 mkdir -p "$DEPS"
 clone_full(){ url="$1"; dir="$2"; if [[ -d "$dir/.git" ]]; then echo "[update] $dir"; git -C "$dir" pull --ff-only || true; else echo "[clone] $url"; git clone "$url" "$dir"; fi; }
 clone_sparse_dir(){ url="$1"; dir="$2"; sparse_dir="$3"; if [[ -d "$dir/.git" ]]; then echo "[update] $dir"; git -C "$dir" pull --ff-only || true; else echo "[sparse-dir-clone] $url $sparse_dir"; git clone --filter=blob:none --sparse "$url" "$dir"; fi; git -C "$dir" sparse-checkout set "$sparse_dir"; }
-clone_sparse_file(){ url="$1"; dir="$2"; file_path="$3"; if [[ -d "$dir/.git" ]]; then echo "[update] $dir"; git -C "$dir" pull --ff-only || true; else echo "[sparse-file-clone] $url $file_path"; git clone --filter=blob:none --sparse "$url" "$dir"; fi; git -C "$dir" sparse-checkout set --no-cone "$file_path"; }
+clone_sparse_file(){ url="$1"; dir="$2"; file_path="$3"; if [[ -d "$dir/.git" ]]; then echo "[update] $dir"; git -C "$dir" pull --ff-only || true; else echo "[sparse-file-clone] $url $file_path"; git clone --filter=blob:none --sparse "$url" "$dir"; fi; sparse_file_pattern="$file_path"; sparse_file_pattern="${sparse_file_pattern#/}"; sparse_file_pattern="/${sparse_file_pattern}"; git -C "$dir" sparse-checkout set --no-cone "$sparse_file_pattern"; }
 require_file(){ [[ -f "$1" ]] || { echo "[missing] expected dependency file: $1"; exit 1; }; }
 clone_full https://github.com/enk0nl/nsec3-candidate-scheduler "$DEPS/nsec3-candidate-scheduler"
 clone_full https://github.com/enk0nl/nsec3map "$DEPS/nsec3map"
@@ -36,6 +36,5 @@ require_file "$DEPS/SecLists/Discovery/DNS/subdomains-top1million-full.7z"
 require_file "$DEPS/opentaal-wordlist/wordlist.txt"
 require_file "$DEPS/dutch-dns-wordlists/subsubdomains_all_by_occurrance.txt"
 python3 -m pip install -e "$DEPS/nsec3-candidate-scheduler" || echo "[warn] scheduler editable install failed"
-echo "[info] nsec3map editable install is intentionally skipped; using direct python3 map.py"
 [[ $SKIP_ASSETS -eq 1 ]] || scripts/prepare-assets.sh --deps-dir "$DEPS" --assets-dir "$ASSETS" "${EXTRA[@]}"
 scripts/check-tools.sh

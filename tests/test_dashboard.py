@@ -736,3 +736,42 @@ def test_scheduler_record_key_uses_job_prefix_consistently():
     from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record
     r=normalize_scheduler_record({'job_id':1,'phase':'warmup','arm':'dict/seclists','shared_new_cracks':105})
     assert r.data['record_key'] == 'job:1'
+
+def test_parse_osint_subfinder_ready_line():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_status_line
+    d=parse_osint_status_line('[osint] osint/subfinder completed status=ready raw=123 candidates=76 wordlist=/tmp/subfinder.txt')
+    assert d['arm']=='osint/subfinder' and d['tool']=='subfinder' and d['status']=='ready'
+    assert d['raw_count']==123 and d['candidate_count']==76
+
+def test_parse_osint_amass_exhausted_line():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_status_line
+    d=parse_osint_status_line('[osint] osint/amass completed status=exhausted raw=0 candidates=0 reason=no_candidates')
+    assert d['arm']=='osint/amass' and d['tool']=='amass' and d['status']=='exhausted'
+    assert d['raw_count']==0 and d['candidate_count']==0 and d['reason']=='no_candidates'
+
+def test_parse_osint_failed_line():
+    from nsec3_recon.ui.scheduler_parser import parse_osint_status_line
+    d=parse_osint_status_line('[osint] osint/amass completed status=failed exit_code=1 reason=timeout')
+    assert d['status']=='failed' and d['exit_code']==1 and d['reason']=='timeout'
+
+def test_osint_completion_updates_recent_activity():
+    s=DashboardState('example.nl','/tmp/ws')
+    s.update_osint_status({'type':'osint_status','arm':'osint/subfinder','status':'ready','candidate_count':76})
+    text='\n'.join(a['message'] for a in s.recent_activity)
+    assert 'osint/subfinder completed' in text and '76 candidate names ready' in text
+
+def test_osint_exhausted_updates_recent_activity():
+    s=DashboardState('example.nl','/tmp/ws')
+    s.update_osint_status({'type':'osint_status','arm':'osint/amass','status':'exhausted','candidate_count':0})
+    assert 'osint/amass exhausted' in '\n'.join(a['message'] for a in s.recent_activity)
+
+def test_osint_completion_not_repeated():
+    s=DashboardState('example.nl','/tmp/ws'); ev={'type':'osint_status','arm':'osint/subfinder','status':'ready','candidate_count':76}
+    s.update_osint_status(ev); s.update_osint_status(ev)
+    assert sum('osint/subfinder completed' in a['message'] for a in s.recent_activity)==1
+
+def test_osint_candidate_names_not_added_to_discovered_names():
+    s=DashboardState('example.nl','/tmp/ws')
+    before=s.discovered_names_count
+    s.update_osint_status({'type':'osint_status','arm':'osint/subfinder','status':'ready','candidate_count':76})
+    assert s.discovered_names_count == before

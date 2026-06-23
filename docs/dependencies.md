@@ -32,14 +32,16 @@ git sparse-checkout set Discovery/DNS
 OpenTaal uses single-file sparse checkout in non-cone mode:
 
 ```bash
-git sparse-checkout set --no-cone wordlist.txt
+git sparse-checkout set --no-cone /wordlist.txt
 ```
 
 Dutch DNS wordlists uses single-file sparse checkout in non-cone mode:
 
 ```bash
-git sparse-checkout set --no-cone subsubdomains_all_by_occurrance.txt
+git sparse-checkout set --no-cone /subsubdomains_all_by_occurrance.txt
 ```
+
+Single-file sparse checkout uses non-cone mode with a leading slash; this avoids Git warnings about single-file sparse checkout patterns.
 
 Do not use `--skip-checks` as the preferred solution for single files; use `--no-cone`.
 
@@ -54,6 +56,8 @@ Run `scripts/check-tools.sh` to verify installed versions. Use `scripts/check-to
 ## SecLists DNS wordlist processing
 
 SecLists is sparse-checked out with only `Discovery/DNS`. `scripts/prepare-seclists.sh` extracts `Discovery/DNS/subdomains-top1million-full.7z` into a temporary directory, removes the prevalence/count column, and writes `assets/wordlists/seclists-subdomains-full-clean.txt`.
+
+SecLists combining can take several minutes and may use significant temporary disk space. PCFG top 100M generation can take a long time and creates a large file; use `--skip-pcfg` during bootstrap/install when you do not need that asset immediately.
 
 The cleaned `subdomains-top1million-full.7z` output is combined with all Discovery/DNS `*.txt` wordlists. The combiner emits both original FQDN-like candidates and labels split on dots, then frequency-sorts with GNU `sort` and `uniq`. The final `assets/wordlists/seclists_total.txt` wordlist intentionally starts with one leading empty line. Counts are not retained by default; pass `--keep-counts` to write `assets/wordlists/seclists_total_counts.tsv` for debugging.
 
@@ -79,3 +83,5 @@ Dashboard scheduler aggregation prefers `scheduler/jobs.jsonl` when available so
 The jobs.jsonl mapper treats `shared_new_cracks`, `marginal_new_cracks`, and `new_cracks` as per-slice discovery fields, prefers `reward_used_for_score` for R, accepts `phase=warmup`, and treats `total_cracks`/`total`/`total_discoveries` as global totals. Discovered-name logical sources are `axfr`, `nsec`, and `nsec3`; `run.pot` is an artifact file, not a discovery source label.
 
 Last/Previous completed slice panels show completed scheduler jobs/slices: `18/150` is the job or slice index out of configured scheduler total slices, while `total=218` inside slice details is the global cracked-hash count. NSEC3 progress uses cracked hashes / total hashes from jobs.jsonl `total_cracks` and hashcatify `hash_count`; unique discovered names are shown separately.
+
+Recent activity shows OSINT start and completion/return events. OSINT returns candidate names, not discovered names, unless later validated by NSEC3 cracking. Discovered names are AXFR/NSEC/NSEC3-validated outputs only.

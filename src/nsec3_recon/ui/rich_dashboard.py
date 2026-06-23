@@ -2,7 +2,7 @@ from __future__ import annotations
 import json, threading, time
 from pathlib import Path
 from .dashboard_state import DashboardState
-from .scheduler_parser import normalize_scheduler_record, parse_scheduler_line
+from .scheduler_parser import normalize_osint_status_record, normalize_scheduler_record, parse_osint_status_line, parse_scheduler_line
 from .widgets import build_dashboard
 from ..adapters.potfile import PotfileTail
 
@@ -79,10 +79,13 @@ class RichDashboard:
         with self._lock:
             self.state.handle_event(event)
             if event.stage=='scheduler' and event.event=='stdout':
+                osint=parse_osint_status_line(event.message)
+                if osint and self.state.update_osint_status(osint):
+                    self._dirty=True
                 parsed=parse_scheduler_line(event.message)
                 if parsed.parsed:
                     self.state.latest_stdout_slice_debug = parsed.data
-                else:
+                elif not osint:
                     self.state.recent_scheduler_messages.append(parsed.data['message']); self.state.add_activity(parsed.data['message'])
             self._dirty=True
     def poll_external_sources(self):
@@ -95,6 +98,8 @@ class RichDashboard:
             if jobs: self._jobs_tail=JsonlTail(jobs)
         if self._jobs_tail:
             for record in self._jobs_tail.poll():
+                osint=normalize_osint_status_record(record)
+                if osint and self.state.update_osint_status(osint): self._dirty=True
                 normalized=normalize_scheduler_record(record)
                 if normalized and self.state.update_scheduler_job(normalized.data): self._dirty=True
         if self._tail is None:

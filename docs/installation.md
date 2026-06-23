@@ -124,12 +124,14 @@ git sparse-checkout set Discovery/DNS
 
 git clone --filter=blob:none --sparse https://github.com/OpenTaal/opentaal-wordlist deps/src/opentaal-wordlist
 cd deps/src/opentaal-wordlist
-git sparse-checkout set --no-cone wordlist.txt
+git sparse-checkout set --no-cone /wordlist.txt
 
 git clone --filter=blob:none --sparse https://github.com/enk0nl/dutch-dns-wordlists deps/src/dutch-dns-wordlists
 cd deps/src/dutch-dns-wordlists
-git sparse-checkout set --no-cone subsubdomains_all_by_occurrance.txt
+git sparse-checkout set --no-cone /subsubdomains_all_by_occurrance.txt
 ```
+
+Single-file sparse checkout uses non-cone mode with a leading slash; this avoids Git warnings about single-file sparse checkout patterns.
 
 SecLists archive expected path:
 
@@ -255,6 +257,8 @@ If Debian/Ubuntu apt provides an older Go version, install Go from the upstream 
 
 SecLists is sparse-checked out with only `Discovery/DNS`. Asset preparation extracts `subdomains-top1million-full.7z` to a temporary directory, removes the prevalence/count column from the extracted archive, and passes the cleaned output as an extra input to the external-sort combiner.
 
+SecLists combining can take several minutes and may use significant temporary disk space. PCFG top 100M generation can take a long time and creates a large file; pass `--skip-pcfg` to skip PCFG generation when bootstrapping.
+
 The combiner reads all Discovery/DNS `*.txt` files plus the cleaned `subdomains-top1million-full.7z` output, emits both original FQDN-like candidates and labels split on dots, and frequency-sorts the result using GNU `sort` and `uniq`.
 
 Default output:
@@ -354,3 +358,5 @@ Dashboard scheduler aggregation prefers `scheduler/jobs.jsonl` when available so
 The jobs.jsonl mapper treats `shared_new_cracks`, `marginal_new_cracks`, and `new_cracks` as per-slice discovery fields, prefers `reward_used_for_score` for R, accepts `phase=warmup`, and treats `total_cracks`/`total`/`total_discoveries` as global totals. Discovered-name logical sources are `axfr`, `nsec`, and `nsec3`; `run.pot` is an artifact file, not a discovery source label.
 
 Last/Previous completed slice panels show completed scheduler jobs/slices: `18/150` is the job or slice index out of configured scheduler total slices, while `total=218` inside slice details is the global cracked-hash count. NSEC3 progress uses cracked hashes / total hashes from jobs.jsonl `total_cracks` and hashcatify `hash_count`; unique discovered names are shown separately.
+
+Recent activity shows OSINT start and completion/return events. OSINT returns candidate names, not discovered names, unless later validated by NSEC3 cracking. Discovered names are AXFR/NSEC/NSEC3-validated outputs only.

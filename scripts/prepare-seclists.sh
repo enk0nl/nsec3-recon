@@ -36,6 +36,12 @@ PY
 TMP_ARGS=()
 [[ -n "${TMP_DIR:-}" ]] && TMP_ARGS+=(--tmp-dir "$TMP_DIR")
 [[ $KEEP_COUNTS -eq 1 ]] && TMP_ARGS+=(--keep-counts)
+echo "[long] Preparing SecLists DNS wordlist"
+echo "[long] This cleans top1m prevalence columns, emits FQDNs and labels, and frequency-sorts Discovery/DNS *.txt files."
+echo "[long] This can take several minutes and may use significant temporary disk space."
+echo "[long] Output: $ASSETS/wordlists/seclists_total.txt"
+echo "[long] sort memory: ${SORT_MEMORY:-1G}"
+if [[ -n "${TMP_DIR:-}" ]]; then echo "[long] temp dir: $TMP_DIR"; else echo "[long] temp dir: system default"; fi
 python3 scripts/seclists_fqdn_and_labels_external_sort.py \
   --input-dir "$DNS_DIR" \
   --extra-input "$CLEAN" \
@@ -43,5 +49,5 @@ python3 scripts/seclists_fqdn_and_labels_external_sort.py \
   --sort-memory "${SORT_MEMORY:-1G}" \
   "${TMP_ARGS[@]}"
 echo "[ok] cleaned top1m full archive: $CLEAN"
-echo "[ok] combined SecLists DNS wordlist: $ASSETS/wordlists/seclists_total.txt"
+echo "[ok] SecLists wordlist written: $ASSETS/wordlists/seclists_total.txt"
 if [[ $KEEP_COUNTS -eq 1 ]]; then echo "[ok] counts: $ASSETS/wordlists/seclists_total_counts.tsv"; fi

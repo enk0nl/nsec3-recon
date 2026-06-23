@@ -58,6 +58,7 @@ class DashboardState:
         self.scheduler_total_slices=scheduler_total_slices
         self.completed_slices_by_key={}; self.completed_slice_order=[]; self.processed_scheduler_records={}
         self.nsec3_hash_total=0; self.nsec3_hash_cracked=0; self.latest_stdout_slice_debug=None
+        self.osint_status={}; self.emitted_osint_status_events=set()
     @property
     def recovered_candidates(self): return self.discovered_names_recent
     @property
@@ -114,6 +115,36 @@ class DashboardState:
         if event.stage=='nsec3map':
             return 'nsec3map_detect' if 'detect' in event.event else 'nsec3map_enumeration'
         return event.stage
+
+    def update_osint_status(self, data):
+        if not data or data.get('type') != 'osint_status':
+            return False
+        arm=data.get('arm') or 'osint/unknown'; status=data.get('status') or 'unknown'
+        current=self.osint_status.setdefault(arm, {'started_at': None, 'completed_at': None})
+        current.update({k: data.get(k) for k in ('tool','status','raw_count','candidate_count','exit_code','reason','wordlist') if k in data})
+        if status in {'ready','exhausted','failed'}:
+            current['completed_at']=datetime.now().strftime('%H:%M:%S')
+        key=(arm,status,data.get('candidate_count'),data.get('exit_code'),data.get('reason'))
+        if key in self.emitted_osint_status_events:
+            return False
+        self.emitted_osint_status_events.add(key)
+        self.add_activity(self._format_osint_status_activity(data), 'error' if status == 'failed' else 'info')
+        return True
+
+    def _format_osint_status_activity(self, data):
+        arm=data.get('arm') or 'osint/unknown'; status=data.get('status') or 'completed'; count=data.get('candidate_count')
+        if status == 'failed':
+            parts=[f"{arm} failed"]
+            if data.get('exit_code') is not None: parts.append(f"exit_code={data.get('exit_code')}")
+            if data.get('reason'): parts.append(f"reason={data.get('reason')}")
+            return ': '.join([parts[0], ' '.join(parts[1:])]) if len(parts)>1 else parts[0]
+        if status == 'exhausted':
+            return f"{arm} exhausted: no candidate names"
+        if count is None:
+            return f"{arm} completed"
+        if int(count) > 0:
+            return f"{arm} completed: {int(count)} candidate names ready"
+        return f"{arm} completed: no candidate names"
     def _scheduler_fallback_key(self, data):
         return (data.get('slice_index') or data.get('job_id'), data.get('arm'), data.get('new'), data.get('reward'), data.get('runtime_seconds'))
     def _scheduler_record_key(self, data):
