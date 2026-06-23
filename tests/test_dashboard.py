@@ -536,3 +536,84 @@ def test_discovered_names_rows_show_name_only():
     s=DashboardState('example.nl','/tmp/ws'); s.discovered_names_recent.append(DiscoveredName(name='loting', source='nsec3', method='hashcat_potfile', first_seen_at='07:12:02')); s.discovered_names_count=1; s.discovered_names_by_source={'nsec3':1}
     out=_render_text(s)
     assert '07:12:02  loting' in out and '07:12:02  nsec3  loting' not in out
+
+def test_slice_total_falls_back_to_config_total_slices():
+    s=DashboardState('example.nl','/tmp/ws', scheduler_total_slices=150)
+    s.update_slice({'source':'jobs_jsonl','job_id':18,'slice_index':18,'arm':'a','new':1})
+    out=_render_text(s)
+    assert '18/150' in out and '18/None' not in out
+
+def test_slice_total_unknown_renders_question_mark_only_without_config():
+    s=DashboardState('example.nl','/tmp/ws')
+    s.update_slice({'source':'jobs_jsonl','job_id':18,'slice_index':18,'arm':'a','new':1})
+    assert '18/?' in _render_text(s)
+
+def test_last_previous_slices_are_not_same_record():
+    from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record, parse_scheduler_line
+    s=DashboardState('example.nl','/tmp/ws', scheduler_total_slices=150)
+    s.update_slice(parse_scheduler_line('[18/150] adaptive arm-a reason=x new=3 total=218 reward=1.0 score=0.1->0.2 runtime=1.0s').data)
+    s.update_slice(normalize_scheduler_record({'job_id':18,'phase':'adaptive','arm':'arm-a','shared_new_cracks':3,'total_cracks':218,'reward_used_for_score':1.0,'score_after':0.2,'runtime_seconds':1.0}).data)
+    assert s.last_completed_slice['slice_index'] == 18
+    assert s.previous_completed_slice is None or s.previous_completed_slice['slice_index'] != 18
+
+def test_jobs_record_updates_existing_stdout_slice_without_shifting():
+    from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record, parse_scheduler_line
+    s=DashboardState('example.nl','/tmp/ws', scheduler_total_slices=150)
+    s.update_slice(parse_scheduler_line('[18/150] adaptive arm-a reason=x new=3 total=218 reward=1.0 score=0.1->0.2 runtime=1.0s').data)
+    s.update_slice(normalize_scheduler_record({'job_id':18,'phase':'adaptive','arm':'arm-a','shared_new_cracks':3,'total_cracks':218,'reward_used_for_score':1.0,'score_after':0.2,'runtime_seconds':1.0}).data)
+    assert len(s.completed_slice_order) == 1
+    assert s.last_completed_slice['source'] == 'jobs_jsonl'
+    assert s.previous_completed_slice is None
+
+def test_two_unique_jobs_populate_last_and_previous():
+    s=DashboardState('example.nl','/tmp/ws', scheduler_total_slices=150)
+    s.update_slice({'source':'jobs_jsonl','job_id':17,'slice_index':17,'arm':'a','new':1})
+    s.update_slice({'source':'jobs_jsonl','job_id':18,'slice_index':18,'arm':'b','new':1})
+    assert s.previous_completed_slice['slice_index'] == 17 and s.last_completed_slice['slice_index'] == 18
+
+def test_jobs_jsonl_job_id_used_as_seen_index_and_rendered_index():
+    from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record
+    s=DashboardState('example.nl','/tmp/ws', scheduler_total_slices=150)
+    s.update_slice(normalize_scheduler_record({'job_id':18,'phase':'warmup','arm':'a','shared_new_cracks':1}).data)
+    assert s.arm_stats['a'].last_seen_slice == 18
+    out=_render_text(s)
+    assert 'job 18/150' in out and '18/None' not in out
+
+def test_hashcatify_completed_sets_nsec3_hash_total():
+    s=DashboardState('example.nl')
+    s.handle_event(PipelineEvent('now','hashcatify','info','completed','done',{'hash_count':123456}))
+    assert s.nsec3_hash_total == 123456
+
+def test_jobs_total_cracks_updates_nsec3_hash_cracked():
+    from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record
+    s=DashboardState('example.nl')
+    s.update_slice(normalize_scheduler_record({'job_id':1,'arm':'a','shared_new_cracks':1,'total_cracks':218}).data)
+    assert s.nsec3_hash_cracked == 218
+
+def test_nsec3_progress_percent():
+    s=DashboardState('example.nl'); s.nsec3_hash_total=123456; s.nsec3_hash_cracked=218
+    assert round(s.nsec3_hash_progress_percent, 4) == 0.1766
+    assert '0.18%' in _render_text(s)
+
+def test_nsec3_progress_uses_hashes_not_unique_names():
+    s=DashboardState('example.nl'); s.nsec3_hash_total=123456; s.nsec3_hash_cracked=218; s.discovered_names_count=102
+    assert s.nsec3_hash_progress_percent == 100 * 218 / 123456
+
+def test_nsec3_progress_render_contains_hashes_and_names():
+    s=DashboardState('example.nl','/tmp/ws'); s.nsec3_hash_total=123456; s.nsec3_hash_cracked=218; s.discovered_names_count=102
+    out=_render_text(s)
+    assert 'hashes=218/123456' in out and 'names=102' in out
+
+def test_total_field_not_used_as_total_slices():
+    from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record
+    s=DashboardState('example.nl','/tmp/ws', scheduler_total_slices=150)
+    s.update_slice(normalize_scheduler_record({'job_id':18,'arm':'a','shared_new_cracks':1,'total_cracks':218}).data)
+    out=_render_text(s)
+    assert '18/150' in out and '18/218' not in out
+
+def test_global_total_rendered_as_total_cracks():
+    from nsec3_recon.ui.scheduler_parser import normalize_scheduler_record
+    s=DashboardState('example.nl','/tmp/ws', scheduler_total_slices=150)
+    s.update_slice(normalize_scheduler_record({'job_id':18,'phase':'adaptive','arm':'a','shared_new_cracks':6,'total_cracks':218}).data)
+    out=_render_text(s)
+    assert '18/150' in out and 'total=218' in out

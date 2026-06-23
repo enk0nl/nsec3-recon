@@ -43,7 +43,7 @@ class ArmStats:
     def avg_runtime(self): return self.total_runtime / self.run_count if self.run_count else 0
 
 class DashboardState:
-    def __init__(self, domain='', workspace=None):
+    def __init__(self, domain='', workspace=None, scheduler_total_slices=None):
         self.domain=domain; self.workspace=str(workspace or ''); self.started_at=time.time(); self.current_stage='preflight'
         self.completed_via=None; self.overall_status='running'; self.last_error=None
         self.warnings_count=0; self.errors_count=0; self.event_count=0
@@ -52,7 +52,9 @@ class DashboardState:
         self.arm_stats={}; self.recent_activity=deque(maxlen=80); self.recent_scheduler_messages=deque(maxlen=80)
         self.discovered_names_recent=deque(maxlen=200); self.discovered_names_seen=set(); self.discovered_names_count=0; self.discovered_names_by_source={}
         self.current_potfile_path=None; self.last_scheduler_stdout=None; self.last_scheduler_stderr=None; self.scheduler_runtime_started_at=None
-        self.processed_scheduler_records={}
+        self.scheduler_total_slices=scheduler_total_slices
+        self.completed_slices_by_key={}; self.completed_slice_order=[]; self.processed_scheduler_records={}
+        self.nsec3_hash_total=0; self.nsec3_hash_cracked=0
     @property
     def recovered_candidates(self): return self.discovered_names_recent
     @property
@@ -83,6 +85,8 @@ class DashboardState:
             if event.event=='started': self.scheduler_started=True; self.scheduler_runtime_started_at=time.time()
             if event.event=='stdout': self.last_scheduler_stdout=event.message
             if event.event=='stderr': self.last_scheduler_stderr=event.message; self.add_activity('[scheduler] stderr: '+event.message,'warning')
+        if event.stage == 'hashcatify' and data.get('hash_count') is not None:
+            self.nsec3_hash_total = int(data.get('hash_count') or 0)
         if event.stage == 'discovery':
             self._handle_discovery_event(event, data)
         if event.event in ('summary_written','completed') and data.get('completed_via'):
@@ -106,7 +110,7 @@ class DashboardState:
             return 'nsec3map_detect' if 'detect' in event.event else 'nsec3map_enumeration'
         return event.stage
     def _scheduler_fallback_key(self, data):
-        return (data.get('slice_index'), data.get('arm'), data.get('new'), data.get('reward'), data.get('runtime_seconds'))
+        return (data.get('slice_index') or data.get('job_id'), data.get('arm'), data.get('new'), data.get('reward'), data.get('runtime_seconds'))
     def _scheduler_record_key(self, data):
         if data.get('record_key'):
             return data.get('record_key')
@@ -115,15 +119,26 @@ class DashboardState:
         return self._scheduler_fallback_key(data)
     def update_slice(self, data):
         record=dict(data); key=self._scheduler_record_key(record); fallback_key=self._scheduler_fallback_key(record)
-        if key in self.processed_scheduler_records or (record.get('source') == 'jobs_jsonl' and fallback_key in self.processed_scheduler_records):
+        if record.get('total_slices') is None and self.scheduler_total_slices is not None:
+            record['total_slices'] = self.scheduler_total_slices
+        duplicate_key = key if key in self.processed_scheduler_records else (fallback_key if fallback_key in self.processed_scheduler_records else None)
+        if duplicate_key is not None:
             # Avoid double-counting when stdout fallback and jobs.jsonl report the same run.
             if record.get('source') == 'jobs_jsonl':
-                self.processed_scheduler_records[key] = record
-                self.processed_scheduler_records[fallback_key] = record
+                existing = self.processed_scheduler_records[duplicate_key]
+                existing.update(record)
+                self.processed_scheduler_records[key] = existing
+                self.processed_scheduler_records[fallback_key] = existing
+                if self.last_completed_slice is existing:
+                    self.last_completed_slice = existing
+                if self.previous_completed_slice is existing:
+                    self.previous_completed_slice = existing
+            self._update_hash_progress(record)
             return False
         self.processed_scheduler_records[key]=record
         self.processed_scheduler_records[fallback_key]=record
-        self.previous_completed_slice=self.last_completed_slice; self.last_completed_slice=record; self.slice_history.append(record); self.scheduler_started=True
+        self.completed_slices_by_key[key]=record; self.completed_slice_order.append(key)
+        self._recompute_last_previous(); self.slice_history.append(record); self.scheduler_started=True
         arm=record.get('arm') or 'unknown'
         for a in self.arm_stats.values(): a.active=False
         st=self.arm_stats.setdefault(arm, ArmStats(arm)); st.active=True; st.run_count+=1
@@ -133,7 +148,18 @@ class DashboardState:
         st.last_runtime=record.get('runtime_seconds') or 0.0; st.total_runtime += st.last_runtime
         st.last_score=record.get('score_after') if record.get('score_after') is not None else record.get('score_before'); st.score_history.append(st.last_score or 0)
         st.last_queue_before=record.get('queue_before'); st.last_queue_after=record.get('queue_after')
+        self._update_hash_progress(record)
         return True
+    def _recompute_last_previous(self):
+        self.last_completed_slice = self.completed_slices_by_key[self.completed_slice_order[-1]] if self.completed_slice_order else None
+        self.previous_completed_slice = self.completed_slices_by_key[self.completed_slice_order[-2]] if len(self.completed_slice_order) > 1 else None
+    def _update_hash_progress(self, record):
+        global_total = record.get('global_total') if record.get('global_total') is not None else record.get('total')
+        if global_total is not None:
+            self.nsec3_hash_cracked = max(self.nsec3_hash_cracked, int(global_total))
+    @property
+    def nsec3_hash_progress_percent(self):
+        return (100.0 * self.nsec3_hash_cracked / self.nsec3_hash_total) if self.nsec3_hash_total else None
     def _normalize_name(self, name):
         return str(name or '').strip().lower().rstrip('.')
     def _handle_discovery_event(self, event, data):

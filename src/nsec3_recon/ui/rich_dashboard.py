@@ -51,8 +51,8 @@ def discover_potfile(workspace) -> Path | None:
     return None
 
 class RichDashboard:
-    def __init__(self, domain='', workspace=None, refresh_per_second=2.0, console=None, potfile_poll_interval_seconds=1.0):
-        self.state=DashboardState(domain, workspace); self.refresh_per_second=min(float(refresh_per_second), 10.0); self._lock=threading.RLock(); self._stop=threading.Event(); self._thread=None; self._live=None; self._tail=None; self._jobs_tail=None; self._dirty=True
+    def __init__(self, domain='', workspace=None, refresh_per_second=2.0, console=None, potfile_poll_interval_seconds=1.0, scheduler_total_slices=None):
+        self.state=DashboardState(domain, workspace, scheduler_total_slices=scheduler_total_slices); self.refresh_per_second=min(float(refresh_per_second), 10.0); self._lock=threading.RLock(); self._stop=threading.Event(); self._thread=None; self._live=None; self._tail=None; self._jobs_tail=None; self._dirty=True
         self.console=console; self.potfile_poll_interval_seconds=potfile_poll_interval_seconds; self._last_potfile_poll=0.0
     def start(self):
         from rich.live import Live

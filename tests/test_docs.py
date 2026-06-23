@@ -193,3 +193,14 @@ def test_docs_do_not_call_run_pot_a_discovery_source():
     from pathlib import Path
     text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
     assert 'run.pot` is an artifact file, not a discovery source label' in text
+
+def test_docs_explain_slice_index_and_global_total():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert '`18/150` is the job or slice index out of configured scheduler total slices' in text
+    assert '`total=218` inside slice details is the global cracked-hash count' in text
+
+def test_docs_explain_nsec3_hash_progress():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert 'cracked hashes / total hashes' in text and 'hashcatify `hash_count`' in text

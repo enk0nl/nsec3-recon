@@ -16,10 +16,15 @@ def shorten_middle(value: str, max_len: int = 28) -> str:
     right = keep - left
     return value[:left] + '…' + value[-right:]
 
-def _slice_lines(s):
-    if not s: return ['waiting for completed scheduler slice…']
+def format_slice_index(slice_index, total_slices, fallback_total_slices=None):
+    total = total_slices if total_slices is not None else fallback_total_slices
+    return f"{slice_index if slice_index is not None else '?'}/{total if total is not None else '?'}"
+
+def _slice_lines(s, fallback_total_slices=None):
+    if not s: return ['waiting for previous slice…']
     phase=s.get('phase') or s.get('schedule_name') or 'unknown'
-    lines=[f"slice {s.get('slice_index','?')}/{s.get('total_slices','?')}  phase={phase}", f"arm={s.get('arm','?')}  reason={s.get('reason','-')}"]
+    label='job' if s.get('source') == 'jobs_jsonl' or s.get('job_id') is not None else 'slice'
+    lines=[f"{label} {format_slice_index(s.get('slice_index') or s.get('job_id'), s.get('total_slices'), fallback_total_slices)}  phase={phase}", f"arm={s.get('arm','?')}  reason={s.get('reason','-')}"]
     lines.append(f"new={s.get('new','-')}  total={s.get('total','-')}  reward={_fmt_float(s.get('reward'))}  runtime={_fmt_runtime(s.get('runtime_seconds'))}")
     if s.get('score_before') is not None: lines.append(f"score {_fmt_float(s.get('score_before'))} → {_fmt_float(s.get('score_after'))}")
     if s.get('queue_before') is not None: lines.append(f"queue {s.get('queue_before')} → {s.get('queue_after')}")
@@ -35,6 +40,10 @@ def _fmt_float(value, ndigits=2):
 
 def _fmt_runtime(value):
     return '–' if value is None else f"{float(value):.1f}s"
+
+def _fmt_progress(value):
+    if value is None: return '–'
+    return f"{value:.2f}%" if value < 1 else f"{value:.1f}%"
 
 def _build_arm_panel(state):
     from rich.panel import Panel
@@ -114,13 +123,13 @@ def build_dashboard(state):
         pipe.add_row(Text.assemble((glyph+' ',style),(name,style),(' '+st.status,'dim'),(msg,'dim')))
     pipeline=Panel(pipe, title='Pipeline', border_style='blue')
     if state.scheduler_started:
-        operation=Panel('\n'.join(_slice_lines(state.last_completed_slice)), title='Last completed slice', border_style='bright_cyan')
+        operation=Panel('\n'.join(_slice_lines(state.last_completed_slice, state.scheduler_total_slices)), title='Last completed slice', border_style='bright_cyan')
     else:
         st=state.stages.get(state.current_stage); operation=Panel((st.message if st else 'waiting') or 'waiting', title='Current operation', border_style='bright_cyan')
-    previous=Panel('\n'.join(_slice_lines(state.previous_completed_slice)), title='Previous completed slice', border_style='cyan')
+    previous=Panel('\n'.join(_slice_lines(state.previous_completed_slice, state.scheduler_total_slices)), title='Previous completed slice', border_style='cyan')
     arm_panel=_build_arm_panel(state)
     discovered=_build_discovered_panel(state)
-    footer=Panel(f"events={state.event_count}  warnings={state.warnings_count}  errors={state.errors_count}  discovered={state.discovered_names_count}  parsed_slices={len(state.slice_history)}", border_style='dim')
+    footer=Panel(f"events={state.event_count}  warnings={state.warnings_count}  errors={state.errors_count}  hashes={state.nsec3_hash_cracked}/{state.nsec3_hash_total or '?'} ({_fmt_progress(state.nsec3_hash_progress_percent)})  names={state.discovered_names_count}  parsed_slices={len(state.slice_history)}", border_style='dim')
     layout=Layout(); layout.split_column(Layout(header,size=3), Layout(name='body'), Layout(footer,size=3))
     layout['body'].split_row(Layout(name='left',ratio=25), Layout(name='center',ratio=45), Layout(discovered,name='right',ratio=30))
     layout['left'].split_column(Layout(pipeline,ratio=3), Layout(_build_activity_panel(state),ratio=2))

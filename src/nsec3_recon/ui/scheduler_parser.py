@@ -43,6 +43,7 @@ def parse_scheduler_line(line: str) -> SchedulerParseResult:
         'schedule_name': m.group('schedule'),
         'arm': m.group('arm'),
         'raw': text,
+        'source': 'stdout',
     }
     kv = {mm.group('key'): mm.group('value') for mm in _PAIR_RE.finditer(m.group('rest') or '')}
     data['reason'] = kv.get('reason')
