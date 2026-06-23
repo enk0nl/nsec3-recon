@@ -156,3 +156,9 @@ def test_docs_explain_arm_table_columns():
     text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
     assert 'R = latest reward' in text
     assert 'Score = latest scheduler score' in text
+
+def test_docs_explain_total_vs_global_total():
+    from pathlib import Path
+    text='\n'.join(p.read_text() for p in [Path('README.md'), *Path('docs').glob('*.md')])
+    assert 'sum of per-slice `new` values' in text
+    assert 'scheduler line field `total` is the global discovered/cracked total' in text

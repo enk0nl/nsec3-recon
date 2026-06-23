@@ -159,7 +159,7 @@ def test_dashboard_render_contains_key_sections():
 def test_arm_stats_headers_are_readable():
     s=DashboardState('example.nl','/tmp/ws'); s.update_slice({'slice_index':1,'arm':'feedback/predictive-prefix','new':1,'reward':1.2,'runtime_seconds':3.4})
     out=_render_text(s)
-    for h in ('Arm','Runs','New','Last','R','Score','Avg t','Seen'): assert h in out
+    for h in ('Arm','Runs','Total','Last','R','Score','Avg t','Seen'): assert h in out
     assert 'Avg R' not in out
     for bad in ('to...','avg_...','las...'): assert bad not in out
 
@@ -264,7 +264,7 @@ def test_plain_console_summarizes_discovery_batch(capsys):
 def test_arm_stats_headers_use_reward_and_score():
     s=DashboardState('example.nl','/tmp/ws'); s.update_slice({'slice_index':1,'arm':'feedback/predictive-prefix','new':1,'reward':4.747,'runtime_seconds':3.4,'score_after':0.73})
     out=_render_text(s)
-    for h in ('Arm','Runs','New','Last','R','Score','Avg t','Seen'): assert h in out
+    for h in ('Arm','Runs','Total','Last','R','Score','Avg t','Seen'): assert h in out
     assert 'Avg R' not in out
 
 def test_arm_stats_score_uses_score_after():
@@ -324,3 +324,36 @@ def test_summary_includes_discovered_names_counts(tmp_path):
     write_summary(ctx, 'axfr')
     data=json.loads((ws.root/'reports/summary.json').read_text())
     assert data['discovered_names']['total']==3 and data['discovered_names']['by_source']['axfr']==3
+
+def test_arm_table_header_uses_total_not_new():
+    s=DashboardState('example.nl','/tmp/ws'); s.update_slice({'slice_index':1,'arm':'arm-a','new':3,'reward':1.0,'score_after':0.2})
+    out=_render_text(s)
+    assert 'Total' in out
+    assert ' New ' not in out
+
+def test_arm_total_is_sum_of_slice_new():
+    from nsec3_recon.ui.scheduler_parser import parse_scheduler_line
+    s=DashboardState('example.nl','/tmp/ws')
+    for line in (
+        '[1/150] adaptive arm-a reason=x new=3 total=10 reward=1.0 score=0.1->0.2 runtime=1.0s',
+        '[2/150] adaptive arm-a reason=x new=5 total=15 reward=2.0 score=0.2->0.3 runtime=1.0s',
+    ):
+        s.update_slice(parse_scheduler_line(line).data)
+    arm=s.arm_stats['arm-a']
+    assert arm.total_new == 8 and arm.last_new == 5
+    out=_render_text(s)
+    assert '8' in out and '5' in out
+
+def test_arm_total_does_not_use_global_total_field():
+    from nsec3_recon.ui.scheduler_parser import parse_scheduler_line
+    s=DashboardState('example.nl','/tmp/ws')
+    s.update_slice(parse_scheduler_line('[1/150] adaptive arm-a reason=x new=3 total=999 reward=1.0 score=0.1->0.2 runtime=1.0s').data)
+    assert s.arm_stats['arm-a'].total_new == 3
+    assert s.arm_stats['arm-a'].total_new != 999
+
+def test_arm_last_new_is_latest_slice_new():
+    s=DashboardState('example.nl','/tmp/ws')
+    for i, new in enumerate((3,0,7), start=1):
+        s.update_slice({'slice_index':i,'arm':'arm-a','new':new})
+    assert s.arm_stats['arm-a'].total_new == 10
+    assert s.arm_stats['arm-a'].last_new == 7

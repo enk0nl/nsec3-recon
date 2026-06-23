@@ -41,7 +41,7 @@ def _build_arm_panel(state):
     from rich.text import Text
     arms = Table(expand=True, show_edge=False, box=None, pad_edge=False)
     arms.add_column('Arm', overflow='ellipsis', ratio=3, no_wrap=True)
-    for col in ('Runs','New','Last','R','Score','Avg t','Seen'):
+    for col in ('Runs','Total','Last','R','Score','Avg t','Seen'):
         arms.add_column(col, justify='right', no_wrap=True)
     sorted_arms=sorted(state.arm_stats.values(), key=lambda a:(not a.active, -a.total_new, -(a.last_score if a.last_score is not None else float('-inf')), -a.run_count))
     for a in sorted_arms[:ARM_ROW_LIMIT]:
@@ -54,7 +54,7 @@ def _build_arm_panel(state):
     for _ in range(max(0, ARM_ROW_LIMIT - visible_count)):
         arms.add_row('', '', '', '', '', '', '', '')
     hidden=max(0, len(sorted_arms)-ARM_ROW_LIMIT)
-    footer = f"+{hidden} more arms" if hidden else "R=latest reward  Score=latest score"
+    footer = f"+{hidden} more arms" if hidden else "Total=sum(new)  R=latest reward  Score=latest score"
     return Panel(arms, title='Arm statistics', subtitle=footer, border_style='green')
 
 def _build_discovered_panel(state):
