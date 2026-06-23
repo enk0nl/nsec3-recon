@@ -131,6 +131,7 @@ def write_summary(ctx, completed_via, failed_stage=None, error=None):
         'dnssec_probe_enabled':dnssec_probe_enabled,
         'dnssec_enabled':dnssec_probe_enabled,
         'nsec3map_detected_zone_type':detect.get('zone_type'),
+        'nsec3map_hashlimit': ctx.config.nsec3map_hashlimit,
         'zone_type':n3.get('zone_type') or detect.get('zone_type'),
         'hash_count':h.get('hash_count'),
         'cracked_count':cracked_count,
@@ -151,6 +152,6 @@ def write_summary(ctx, completed_via, failed_stage=None, error=None):
     ctx.state['summary'] = obj
     if getattr(ctx, 'events', None):
         ctx.events.emit('summarize', 'completed', 'summary written', data=obj)
-    lines=["# NSEC3 Recon summary",'',f"Domain: `{ctx.config.domain}`",f"Run ID: `{obj.get('run_id')}`",f"Completed via: `{completed_via}`",f"Hash count: `{obj.get('hash_count')}`",f"Cracked count: `{obj.get('cracked_count')}`",f"Discovered names: `{obj.get('discovered_names_count')}`",_optimized_kernel_summary_line(kernel_meta),'',"## Artifacts"]+[f"- {k}: `{v}`" for k,v in artifacts.items()]
+    lines=["# NSEC3 Recon summary",'',f"Domain: `{ctx.config.domain}`",f"Run ID: `{obj.get('run_id')}`",f"Completed via: `{completed_via}`",f"Hash count: `{obj.get('hash_count')}`",f"Cracked count: `{obj.get('cracked_count')}`",f"Discovered names: `{obj.get('discovered_names_count')}`",f"nsec3map hash limit: `{obj.get('nsec3map_hashlimit')}`",_optimized_kernel_summary_line(kernel_meta),'',"## Artifacts"]+[f"- {k}: `{v}`" for k,v in artifacts.items()]
     (ctx.workspace.root/'reports/summary.md').write_text('\n'.join(lines)+'\n', encoding='utf-8')
     return obj

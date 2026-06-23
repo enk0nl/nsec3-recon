@@ -7,7 +7,7 @@ def test_classify_nsec3(tmp_path):
 
 def test_nsec3map_uses_direct_map_py_by_default(tmp_path):
     cmd=enumerate_command(Path('deps/src/nsec3map'),'python3','example.nl',tmp_path/'zone.txt')
-    assert cmd==['python3','map.py',f'--output={tmp_path/"zone.txt"}','example.nl']
+    assert cmd==['python3','map.py',f'--output={tmp_path/"zone.txt"}','--hashlimit=0','example.nl']
 
 def test_nsec3map_detect_only_command():
     assert detect_command(Path('deps/src/nsec3map'),'python3','example.nl')==['python3','map.py','--detect-only','example.nl']

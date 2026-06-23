@@ -105,7 +105,7 @@ def enumerate(ctx, detected_zone_type=None):
     zone = ctx.workspace.root / "nsec3map/zone.txt"
     out = ctx.workspace.root / "nsec3map/map.stdout.log"
     err = ctx.workspace.root / "nsec3map/map.stderr.log"
-    cmd = enumerate_command(src, ctx.config.nsec3map_python, ctx.config.domain, zone)
+    cmd = enumerate_command(src, ctx.config.nsec3map_python, ctx.config.domain, zone, ctx.config.nsec3map_hashlimit)
     res = SubprocessRunner().run(cmd, cwd=src, stdout_log=out, stderr_log=err)
     zt = detected_zone_type if detected_zone_type in {"nsec", "nsec3"} else classify_zone_file(zone)
     obj = {
@@ -113,6 +113,7 @@ def enumerate(ctx, detected_zone_type=None):
         "status": "success" if res.returncode == 0 else "failed",
         "zone_type": zt,
         "zone_file": "nsec3map/zone.txt",
+        "nsec3map_hashlimit": ctx.config.nsec3map_hashlimit,
         "stdout_log": "nsec3map/map.stdout.log",
         "stderr_log": "nsec3map/map.stderr.log",
         "exit_code": res.returncode,

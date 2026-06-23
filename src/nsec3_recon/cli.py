@@ -17,6 +17,7 @@ def build_parser():
     p.add_argument("--config-template")
     p.add_argument("--nsec3map-source-dir", default="deps/src/nsec3map")
     p.add_argument("--nsec3map-python", default=sys.executable)
+    p.add_argument("--nsec3map-hashlimit", type=int, default=0, metavar="INT", help="Pass --hashlimit to nsec3map during NSEC3 enumeration. Default: 0, meaning no explicit limit.")
     p.add_argument("--scheduler-bin", default="python3 -m nsec3_candidate_scheduler")
     p.add_argument("--hashcat-bin", default="hashcat")
     p.add_argument("--amass-bin", default="~/go/bin/amass")
@@ -59,6 +60,7 @@ def main(argv=None):
             config_template=Path(args.config_template) if args.config_template else None,
             nsec3map_source_dir=Path(args.nsec3map_source_dir),
             nsec3map_python=args.nsec3map_python,
+            nsec3map_hashlimit=args.nsec3map_hashlimit,
             scheduler_bin=args.scheduler_bin,
             hashcat_bin=args.hashcat_bin,
             amass_bin=args.amass_bin,

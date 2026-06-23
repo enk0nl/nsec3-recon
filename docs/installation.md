@@ -109,6 +109,14 @@ Without activation:
 
 Dry run creates a workspace, renders scheduler config, prints planned commands, and does not run external network stages.
 
+Limit nsec3map hash collection for bounded tests or demos with `--nsec3map-hashlimit INT`. The default is `0`, meaning no explicit limit:
+
+```bash
+nsec3-recon example.nl
+nsec3-recon example.nl --nsec3map-hashlimit 0
+nsec3-recon example.nl --nsec3map-hashlimit 10000
+```
+
 ## Bootstrap dependencies
 
 `scripts/bootstrap.sh` is a lower-level dependency/bootstrap helper that is normally called by `scripts/install.sh`. It clones or updates dependencies, prepares assets, and may be run manually for advanced workflows. `scripts/check-tools.sh` verifies external tool availability and versions but does not install anything. `scripts/prepare-assets.sh` prepares derived wordlists/assets and may be called by bootstrap.

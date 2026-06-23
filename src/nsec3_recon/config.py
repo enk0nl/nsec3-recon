@@ -33,6 +33,7 @@ class PipelineConfig:
     config_template: Path | None = None
     nsec3map_source_dir: Path = Path("deps/src/nsec3map")
     nsec3map_python: str = field(default_factory=lambda: sys.executable)
+    nsec3map_hashlimit: int = 0
     scheduler_bin: str = "python3 -m nsec3_candidate_scheduler"
     hashcat_bin: str = "hashcat"
     amass_bin: str = "~/go/bin/amass"
@@ -58,6 +59,9 @@ class PipelineConfig:
         self.dashboard_refresh_rate = min(self.dashboard_refresh_rate, 10.0)
         self.assets_dir = Path(self.assets_dir).resolve()
         self.nsec3map_source_dir = Path(self.nsec3map_source_dir).resolve()
+        self.nsec3map_hashlimit = int(self.nsec3map_hashlimit)
+        if self.nsec3map_hashlimit < 0:
+            raise ValueError("nsec3map hashlimit must be >= 0")
         for name in ("dns_timeout", "dns_lifetime", "axfr_timeout"):
             value = float(getattr(self, name))
             if value <= 0:
