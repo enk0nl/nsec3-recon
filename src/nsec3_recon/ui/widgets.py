@@ -1,6 +1,7 @@
 from __future__ import annotations
 from .theme import STATUS_GLYPHS, STATUS_STYLES
 import shutil
+import textwrap
 
 ARM_ROW_LIMIT = 16
 RECOVERED_ROW_LIMIT = 24
@@ -85,6 +86,21 @@ def _one_line_text(value, style='', width=80, preserve_prefix=False):
     text = _truncate_end(value, max_len) if preserve_prefix else shorten_middle(str(value or ''), max_len)
     return Text(text, style=style, no_wrap=True, overflow='ellipsis')
 
+def _panel_height(options, body_height):
+    max_height = getattr(options, 'max_height', None) or 0
+    return max_height if max_height > 0 else body_height + 2
+
+def _wrap_lines(value, width):
+    text=str(value or '')
+    return textwrap.wrap(text, width=max(1, width), replace_whitespace=False, drop_whitespace=False) or ['']
+
+def _pad_text_lines(lines, body_height):
+    from rich.text import Text
+    padded=list(lines)
+    while len(padded) < body_height:
+        padded.append(Text(''))
+    return padded
+
 def _sorted_arms(state):
     def arm_sort_key(a):
         score = a.last_score if a.last_score is not None else float('-inf')
@@ -102,9 +118,9 @@ class ArmStatisticsPanel:
         visible_arms = sorted_arms[:available_arm_rows]
         hidden=max(0, len(sorted_arms)-len(visible_arms))
         subtitle = f"+{hidden} more arms" if hidden > 0 else None
-        yield Panel(_arm_table(self.state, visible_arms, _content_width(options)), title='Arm statistics', subtitle=subtitle, border_style='green')
+        yield Panel(_arm_table(self.state, visible_arms, _content_width(options), pad_rows=max(0, available_arm_rows-len(visible_arms)) if hidden == 0 else 0), title='Arm statistics', subtitle=subtitle, border_style='green', height=_panel_height(options, body_height))
 
-def _arm_table(state, visible_arms, width):
+def _arm_table(state, visible_arms, width, pad_rows=0):
     from rich.table import Table
     arms = Table(expand=True, show_edge=False, box=None, pad_edge=False)
     arms.add_column('Arm', overflow='ellipsis', ratio=3, no_wrap=True)
@@ -117,6 +133,9 @@ def _arm_table(state, visible_arms, width):
         arms.add_row(arm_name, str(a.run_count), str(a.total_new), str(a.last_new), _fmt_float(a.last_reward), _fmt_float(a.last_score), _fmt_runtime(a.avg_runtime), str(a.last_seen_slice or '-'), style=row_style)
     if not visible_arms and not state.arm_stats:
         arms.add_row('waiting for scheduler slices', '', '', '', '', '', '', '')
+        pad_rows=max(0, pad_rows-1)
+    for _ in range(pad_rows):
+        arms.add_row('', '', '', '', '', '', '', '')
     return arms
 
 def _build_arm_panel(state, max_rows=None):
@@ -135,12 +154,16 @@ class DiscoveredNamesPanel:
         if rows:
             for item in rows:
                 timestamp=getattr(item, 'first_seen_at', '--:--:--'); name=getattr(item, 'name', '')
-                lines.append(_one_line_text(f"{timestamp}  {name}", style='bold white', width=width, preserve_prefix=True))
+                shown_name=_truncate_end(name, max(1, width - len(timestamp) - 2))
+                row=Text.assemble((timestamp, 'cyan'), ('  ', 'cyan'), (shown_name, 'bold white'))
+                row.no_wrap=True; row.overflow='ellipsis'
+                lines.append(row)
         else:
             msg='potfile not detected yet' if not self.state.current_potfile_path and not self.state.discovered_names_by_source else 'waiting for discovered names…'
             lines.append(Text(msg, style='dim', no_wrap=True, overflow='ellipsis'))
+        lines=_pad_text_lines(lines, body_height)
         source = _discovered_source_label(self.state)
-        yield Panel(Text('\n').join(lines), title='Discovered names', subtitle=f"total={self.state.discovered_names_count}  source: {source}", border_style='bright_yellow')
+        yield Panel(Text('\n').join(lines), title='Discovered names', subtitle=f"total={self.state.discovered_names_count}  source: {source}", border_style='bright_yellow', height=_panel_height(options, body_height))
 
 def _build_discovered_panel(state, max_rows=None):
     return DiscoveredNamesPanel(state, max_rows=max_rows)
@@ -162,12 +185,29 @@ class RecentActivityPanel:
         from rich.panel import Panel
         from rich.text import Text
         body_height = self.max_rows if self.max_rows is not None else _panel_body_height(options, ACTIVITY_ROW_LIMIT)
-        visible = list(self.state.recent_activity)[-body_height:] if body_height > 0 else []
         width=_content_width(options)
-        lines=[_one_line_text(a['message'], style={'warning':'yellow','error':'red','info':'white','debug':'dim'}.get(a.get('level'), 'white'), width=width) for a in visible]
+        style_by_level={'warning':'yellow','error':'red','info':'white','debug':'dim'}
+        selected=[]; used_rows=0
+        for activity in reversed(list(self.state.recent_activity)):
+            style=style_by_level.get(activity.get('level'), 'white')
+            wrapped=_wrap_lines(activity.get('message'), width)
+            rows=len(wrapped)
+            if selected and used_rows + rows > body_height:
+                break
+            if not selected and rows > body_height:
+                wrapped=wrapped[:body_height]
+                rows=len(wrapped)
+            selected.append((wrapped, style)); used_rows += rows
+            if used_rows >= body_height:
+                break
+        selected.reverse()
+        lines=[]
+        for wrapped, style in selected:
+            lines.extend(Text(line, style=style) for line in wrapped)
         if not lines:
-            lines.append(Text('no recent activity', style='dim', no_wrap=True, overflow='ellipsis'))
-        yield Panel(Text('\n').join(lines), title='Recent activity', border_style='blue')
+            lines.append(Text('no recent activity', style='dim'))
+        lines=_pad_text_lines(lines, body_height)
+        yield Panel(Text('\n').join(lines), title='Recent activity', border_style='blue', height=_panel_height(options, body_height))
 
 def _build_activity_panel(state, max_rows=None):
     return RecentActivityPanel(state, max_rows=max_rows)

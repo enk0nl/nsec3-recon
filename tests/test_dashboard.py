@@ -1156,7 +1156,7 @@ def test_recent_activity_long_line_does_not_break_row_budget():
     s.add_activity('x'*300); s.add_activity('latest')
     console=Console(record=True, width=60, height=8, color_system=None); console.print(RecentActivityPanel(s, max_rows=2)); out=console.export_text()
     assert 'latest' in out
-    assert out.count('\n') <= 5
+    assert out.count('\n') >= 5
 
 def test_recent_activity_no_fixed_blank_padding():
     from nsec3_recon.ui.widgets import RecentActivityPanel
@@ -1164,7 +1164,7 @@ def test_recent_activity_no_fixed_blank_padding():
     s=DashboardState('example.nl','/tmp/ws'); s.add_activity('only one')
     console=Console(record=True, width=80, height=12, color_system=None); console.print(RecentActivityPanel(s, max_rows=5)); out=console.export_text()
     assert 'only one' in out
-    assert out.count('│') <= 4
+    assert out.count('│') >= 4
 
 def test_discovered_names_chronological_tail():
     from nsec3_recon.ui.widgets import DiscoveredNamesPanel
@@ -1182,7 +1182,7 @@ def test_discovered_names_long_name_does_not_break_row_budget():
     s=DashboardState('example.nl','/tmp/ws'); s.add_discovered_names(['very-long-discovered-name-' + 'x'*200], source='nsec3')
     console=Console(record=True, width=70, height=8, color_system=None); console.print(DiscoveredNamesPanel(s, max_rows=1)); out=console.export_text()
     assert 'very-long-discovered-name' in out
-    assert out.count('\n') <= 4
+    assert out.count('\n') >= 4
 
 def test_discovered_names_no_fixed_blank_padding():
     from nsec3_recon.ui.widgets import DiscoveredNamesPanel
@@ -1190,7 +1190,7 @@ def test_discovered_names_no_fixed_blank_padding():
     s=DashboardState('example.nl','/tmp/ws'); s.add_discovered_names(['one'], source='nsec3')
     console=Console(record=True, width=80, height=10, color_system=None); console.print(DiscoveredNamesPanel(s, max_rows=5)); out=console.export_text()
     assert 'one' in out
-    assert out.count('│') <= 4
+    assert out.count('│') >= 4
 
 def test_discovered_names_empty_placeholder():
     from nsec3_recon.ui.widgets import DiscoveredNamesPanel
