@@ -235,3 +235,44 @@ def test_docs_describe_long_running_tasks_with_info_prefix():
     text=Path('docs/installation.md').read_text()+Path('docs/dependencies.md').read_text()
     assert '[info] Preparing SecLists DNS wordlist' in text
     assert '[info] Generating PCFG DNS wordlist' in text
+
+
+def test_quickstart_default_install_does_not_skip_pcfg():
+    text=Path('README.md').read_text()
+    assert 'scripts/install.sh\nsource .venv/bin/activate' in text
+    quickstart=text.split('## Runtime model', 1)[0]
+    assert 'scripts/install.sh --skip-pcfg' not in quickstart
+
+
+def test_skip_pcfg_documented_only_as_advanced_option():
+    docs_text = [p.read_text() for p in Path('docs').glob('*.md')]
+    text='\n'.join([Path('README.md').read_text(), *docs_text])
+    assert '--skip-pcfg' in text
+    assert 'Use `--skip-pcfg` only for development, CI shortcuts, or debugging' in text
+    quickstart=Path('README.md').read_text().split('## Runtime model', 1)[0]
+    assert '--skip-pcfg' not in quickstart
+
+
+def test_dashboard_docs_do_not_document_names_footer_field():
+    text=(Path('docs/dashboard.md').read_text()+Path('README.md').read_text()).lower()
+    assert 'names=' not in text
+
+
+def test_seen_column_documented():
+    text='\n'.join(p.read_text() for p in Path('docs').glob('*.md'))
+    assert (
+        'Seen` is the last scheduler job/slice id where the arm produced a valid, scored '
+        '`jobs.jsonl` record'
+    ) in text
+    assert 'recency/debug field' in text
+
+
+def test_docs_mention_default_configuration_tuned_for_dutch_domains():
+    text=(
+        Path('README.md').read_text()
+        +Path('docs/configuration.md').read_text()
+        +Path('docs/usage.md').read_text()
+    )
+    assert 'default configuration is tuned for Dutch domains' in text
+    assert '`.nl` namespace' in text
+    assert 'candidate sources and scheduler configuration' in text

@@ -21,6 +21,11 @@ Optional OSINT tools are `amass` and `subfinder`.
 
 NSEC3 Recon invokes `deps/src/nsec3map/map.py` directly by default and does not require editable nsec3map installation.
 
+
+## Default namespace scope
+
+The default configuration is tuned for Dutch domains and the `.nl` namespace. It uses Dutch DNS wordlists, OpenTaal Dutch wordlists, and default generator assets selected for `.nl` naming patterns. The NSEC3 extraction and validation pipeline is generic, but results outside the Dutch namespace depend on replacing or extending the candidate sources and scheduler configuration.
+
 ## Sparse checkout modes
 
 SecLists uses directory sparse checkout in cone mode:
@@ -57,7 +62,7 @@ Run `scripts/check-tools.sh` to verify installed versions. Use `scripts/check-to
 
 SecLists is sparse-checked out with only `Discovery/DNS`. `scripts/prepare-seclists.sh` extracts `Discovery/DNS/subdomains-top1million-full.7z` into a temporary directory, removes the prevalence/count column, and writes `assets/wordlists/seclists-subdomains-full-clean.txt`.
 
-`[info] Preparing SecLists DNS wordlist` is printed before work starts. SecLists combining can take several minutes and may use significant temporary disk space. `[info] Generating PCFG DNS wordlist` is printed before work starts. PCFG top 100M generation can take a long time and creates a large file; use `--skip-pcfg` during bootstrap/install when you do not need that asset immediately.
+`[info] Preparing SecLists DNS wordlist` is printed before work starts. SecLists combining can take several minutes and may use significant temporary disk space. `[info] Generating PCFG DNS wordlist` is printed before work starts. PCFG top 100M generation can take a long time and creates a large file. Use `--skip-pcfg` only for development, CI shortcuts, or debugging flows that do not require the PCFG generator; normal installs should prepare PCFG assets.
 
 The cleaned `subdomains-top1million-full.7z` output is combined with all Discovery/DNS `*.txt` wordlists. The combiner emits both original FQDN-like candidates and labels split on dots, then frequency-sorts with GNU `sort` and `uniq`. The final `assets/wordlists/seclists_total.txt` wordlist intentionally starts with one leading empty line. Counts are not retained by default; pass `--keep-counts` to write `assets/wordlists/seclists_total_counts.tsv` for debugging.
 
