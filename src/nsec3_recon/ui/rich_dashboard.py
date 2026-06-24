@@ -80,8 +80,8 @@ class RichDashboard:
     def stop(self):
         self._stop.set()
         if self._thread: self._thread.join(timeout=2)
+        self.final_refresh()
         if self._live:
-            with self._lock: self._live.update(self.render(), refresh=True)
             self._live.stop()
     def _loop(self):
         interval=1/max(self.refresh_per_second,1)
@@ -107,14 +107,19 @@ class RichDashboard:
                 elif not osint_events:
                     self.state.recent_scheduler_messages.append(parsed.data['message']); self.state.add_activity(parsed.data['message'])
             self._dirty=True
-    def poll_external_sources(self):
-        self._poll_jobs_jsonl()
-        self._poll_scheduler_stdout_log()
-        self._poll_potfile()
+    def poll_external_sources(self, force: bool = False):
+        self._poll_jobs_jsonl(force=force)
+        self._poll_scheduler_stdout_log(force=force)
+        self._poll_potfile(force=force)
 
-    def _poll_jobs_jsonl(self):
+    def final_refresh(self):
+        with self._lock:
+            self.poll_external_sources(force=True)
+            self.refresh()
+
+    def _poll_jobs_jsonl(self, force: bool = False):
         now=time.monotonic()
-        if now - self._last_jobs_poll < self.jobs_poll_interval_seconds:
+        if not force and now - self._last_jobs_poll < self.jobs_poll_interval_seconds:
             return
         self._last_jobs_poll=now
         if self._jobs_tail is None:
@@ -124,12 +129,13 @@ class RichDashboard:
             for record in self._jobs_tail.poll():
                 normalized=normalize_scheduler_record(record)
                 if normalized and self.state.update_scheduler_job(normalized.data): self._dirty=True
+                if self.state.update_scheduler_completion(record): self._dirty=True
                 status=normalize_scheduler_status_record(record)
                 if status and self.state.update_arm_status(status.data): self._dirty=True
 
-    def _poll_scheduler_stdout_log(self):
+    def _poll_scheduler_stdout_log(self, force: bool = False):
         now=time.monotonic()
-        if now - self._last_stdout_poll < self.stdout_poll_interval_seconds:
+        if not force and now - self._last_stdout_poll < self.stdout_poll_interval_seconds:
             return
         self._last_stdout_poll=now
         if self._stdout_tail is None:
@@ -145,9 +151,9 @@ class RichDashboard:
                 osint['source']='stdout_log'
                 if self.state.update_osint_status(osint): self._dirty=True
 
-    def _poll_potfile(self):
+    def _poll_potfile(self, force: bool = False):
         now=time.monotonic()
-        if now - self._last_potfile_poll < self.potfile_poll_interval_seconds:
+        if not force and now - self._last_potfile_poll < self.potfile_poll_interval_seconds:
             return
         self._last_potfile_poll=now
         if self._tail is None:

@@ -1326,3 +1326,84 @@ def test_footer_status_line_still_does_not_include_names_after_apex():
     s.add_discovered_names(['@'], source='nsec3')
     text=_status_line(s)
     assert 'names=' not in text
+
+
+def test_final_dashboard_refresh_polls_potfile_after_scheduler_exit(tmp_path):
+    p=tmp_path/'scheduler'/'run.pot'; p.parent.mkdir(); p.write_text('h1:.example.nl:ab:1:www\n')
+    d=RichDashboard('example.nl', tmp_path)
+    d.state.current_potfile_path=str(p); d.poll_external_sources(force=True)
+    p.write_text('h1:.example.nl:ab:1:www\nh2:.example.nl:ab:1:api\n')
+    d.final_refresh()
+    out=_render_text(d.state)
+    assert 'api' in out
+
+
+def test_final_dashboard_refresh_shows_empty_plaintext_as_at(tmp_path):
+    p=tmp_path/'scheduler'/'run.pot'; p.parent.mkdir(); p.write_text('h1:.example.nl:ab:1:\n')
+    d=RichDashboard('example.nl', tmp_path)
+    d.state.current_potfile_path=str(p); d.final_refresh()
+    out=_render_text(d.state)
+    assert '@' in out
+    assert '  \n' not in [i.name for i in d.state.discovered_names_recent]
+    assert '' not in [i.name for i in d.state.discovered_names_recent]
+
+
+def test_final_dashboard_refresh_updates_hashes_to_100_percent(tmp_path):
+    p=tmp_path/'scheduler'/'run.pot'; p.parent.mkdir()
+    p.write_text('h1:.example.nl:ab:1:\nh2:.example.nl:ab:1:www\nh3:.example.nl:ab:1:mail\nh4:.example.nl:ab:1:api\n')
+    d=RichDashboard('example.nl', tmp_path); d.state.current_potfile_path=str(p); d.state.nsec3_hash_total=4
+    d.final_refresh()
+    assert 'hashes=4/4 (100.0%)' in _render_text(d.state)
+
+
+def test_final_dashboard_refresh_does_not_reintroduce_names_footer(tmp_path):
+    p=tmp_path/'scheduler'/'run.pot'; p.parent.mkdir()
+    p.write_text('h1:.example.nl:ab:1:\nh2:.example.nl:ab:1:www\nh3:.example.nl:ab:1:mail\nh4:.example.nl:ab:1:api\n')
+    d=RichDashboard('example.nl', tmp_path); d.state.current_potfile_path=str(p); d.state.nsec3_hash_total=4
+    d.final_refresh()
+    text=_render_text(d.state)
+    assert 'hashes=4/4 (100.0%)' in text
+    assert 'names=' not in text
+
+
+def test_final_refresh_bypasses_poll_intervals(tmp_path):
+    p=tmp_path/'scheduler'/'run.pot'; p.parent.mkdir(); p.write_text('h1:.example.nl:ab:1:www\n')
+    d=RichDashboard('example.nl', tmp_path, potfile_poll_interval_seconds=999)
+    d.state.current_potfile_path=str(p); d.poll_external_sources(force=True)
+    p.write_text('h1:.example.nl:ab:1:www\nh2:.example.nl:ab:1:api\n')
+    d.poll_external_sources()
+    assert 'api' not in [i.name for i in d.state.discovered_names_recent]
+    d.final_refresh()
+    assert 'api' in [i.name for i in d.state.discovered_names_recent]
+
+
+def test_final_refresh_reads_jobs_jsonl_completion_metadata(tmp_path):
+    p=tmp_path/'scheduler'/'jobs.jsonl'; p.parent.mkdir()
+    p.write_text('{"completed_reason":"all_hashes_cracked","target_hash_count":4,"total_cracks":4,"remaining_hash_count":0}\n')
+    d=RichDashboard('example.nl', tmp_path)
+    d.final_refresh()
+    out=_render_text(d.state)
+    assert d.state.scheduler_completed_reason == 'all_hashes_cracked'
+    assert 'hashes=4/4 (100.0%)' in out
+    assert '[scheduler] completed: 4/4 hashes cracked' in out
+
+
+def test_final_refresh_preserves_non_complete_progress(tmp_path):
+    p=tmp_path/'scheduler'/'jobs.jsonl'; p.parent.mkdir()
+    p.write_text('{"completed_reason":"all_hashes_cracked","target_hash_count":4,"total_cracks":3,"remaining_hash_count":1}\n')
+    d=RichDashboard('example.nl', tmp_path)
+    d.final_refresh()
+    out=_render_text(d.state)
+    assert 'hashes=3/4 (75.0%)' in out
+    assert '100.0%' not in out
+    assert d.state.scheduler_completed_reason is None
+
+
+def test_final_refresh_runs_on_scheduler_error_without_masking_error(tmp_path):
+    p=tmp_path/'scheduler'/'run.pot'; p.parent.mkdir(); p.write_text('h1:.example.nl:ab:1:api\n')
+    d=RichDashboard('example.nl', tmp_path); d.state.current_potfile_path=str(p)
+    d.state.overall_status='failed'; d.state.errors_count=1; d.state.last_error='scheduler failed'
+    d.final_refresh()
+    assert 'api' in [i.name for i in d.state.discovered_names_recent]
+    assert d.state.overall_status == 'failed'
+    assert d.state.errors_count == 1
