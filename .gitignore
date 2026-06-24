@@ -5,3 +5,4 @@ runs/
 *.pyc
 __pycache__/
 .pytest_cache/
+src/nsec3_recon.egg-info/

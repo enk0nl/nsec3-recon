@@ -141,7 +141,7 @@ If a run fails, inspect `events.jsonl`, `logs/listener_errors.log` for dashboard
 
 If hashcat reports optimized-kernel-specific failures, leave the default `--hashcat-optimized-kernel-failover` enabled so the scheduler can retry once with unoptimized kernels and continue unoptimized. To start unoptimized immediately, run `nsec3-recon example.nl --no-hashcat-optimized-kernels`. To keep optimized kernels enabled and avoid automatic retries, use `--no-hashcat-optimized-kernel-failover`.
 
-`scripts/check-tools.sh` verifies that `nsec3-candidate-scheduler run --help` supports `--no-optimized-kernels`, `--optimized-kernel-failover`, and `--no-optimized-kernel-failover`. If it reports the scheduler is too old, rerun `scripts/bootstrap.sh` or install scheduler ref `bdad139599761cece979eb17aabddf5c00369d7a`.
+`scripts/check-tools.sh` verifies that `nsec3-candidate-scheduler run --help` supports `--no-optimized-kernels`, `--optimized-kernel-failover`, and `--no-optimized-kernel-failover`. If it reports the scheduler is too old, rerun `scripts/bootstrap.sh` or install scheduler ref `2054e66e4831f187a8d98fb4b1bb70d3bd1f5e26`.
 
 ## Empty Discovered names panel
 

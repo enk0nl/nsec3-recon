@@ -77,7 +77,7 @@ else
   if [[ $sched_missing -eq 0 ]]; then
     ok "nsec3-candidate-scheduler optimized-kernel failover options"
   else
-    echo "[bad-version] nsec3-candidate-scheduler is too old. Re-run scripts/bootstrap.sh or install scheduler ref bdad139599761cece979eb17aabddf5c00369d7a."
+    echo "[bad-version] nsec3-candidate-scheduler is too old. Re-run scripts/bootstrap.sh or install scheduler ref 2054e66e4831f187a8d98fb4b1bb70d3bd1f5e26."
     missing=1
   fi
 fi
