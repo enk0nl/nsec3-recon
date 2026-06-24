@@ -53,7 +53,7 @@ def validate_model_assets(rendered):
 
 def write_discovery_reports(ctx):
     pot = ctx.workspace.root / "scheduler/run.pot"
-    names, malformed = extract_potfile_names(pot)
+    names, malformed = extract_potfile_names(pot, zone=ctx.config.domain)
     reports = ctx.workspace.root / "reports"
     reports.mkdir(parents=True, exist_ok=True)
     (reports / "cracked_names.txt").write_text("\n".join(names) + ("\n" if names else ""), encoding="utf-8")

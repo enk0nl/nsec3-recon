@@ -7,6 +7,35 @@ def display_name_from_potfile_plaintext(plaintext):
     return str(plaintext).strip().lower().rstrip('.')
 
 
+def normalize_nsec3_discovered_name(value: str, zone: str) -> str | None:
+    zone = str(zone or '').strip().rstrip('.').lower()
+    value = str(value or '').strip().rstrip('.').lower()
+    if not zone:
+        return None
+    if value == '' or value == '@':
+        return zone
+    if value == zone:
+        return zone
+    if value.endswith('.' + zone):
+        return value
+    return f"{value}.{zone}"
+
+
+def normalize_discovered_names(names, source='nsec3', zone=''):
+    out = []
+    seen = set()
+    for name in names or []:
+        if source == 'nsec3':
+            normalized = normalize_nsec3_discovered_name(name, zone)
+        else:
+            normalized = str(name or '').strip().lower().rstrip('.')
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        out.append(normalized)
+    return out
+
+
 class PotfileTail:
     def __init__(self,path):
         self.path=Path(path); self.offset=0; self.seen=set(); self.cracked_hashes_seen=set(); self.cracked_count=0
@@ -26,7 +55,7 @@ class PotfileTail:
         return out
 
 
-def extract_potfile_names(path):
+def extract_potfile_names(path, zone=None):
     p = Path(path)
     names = []
     malformed = 0
@@ -43,6 +72,8 @@ def extract_potfile_names(path):
                 continue
             _hash_part, plaintext = text.rsplit(':', 1)
             name = display_name_from_potfile_plaintext(plaintext)
+            if zone is not None:
+                name = normalize_nsec3_discovered_name(name, zone)
             if name and name not in seen:
                 seen.add(name); names.append(name)
     return names, malformed
