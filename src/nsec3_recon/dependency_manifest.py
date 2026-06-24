@@ -8,7 +8,7 @@ from .adapters.tools import AMASS_MIN, HASHCAT_MIN, SUBFINDER_MIN
 
 GIT_DEPS = {
     'nsec3map': ('https://github.com/enk0nl/nsec3map', 'NSEC3MAP_REF', '5af04b9c900b8f0f1a2113a22f5b34e67e637c80', 'deps/src/nsec3map'),
-    'nsec3-candidate-scheduler': ('https://github.com/enk0nl/nsec3-candidate-scheduler', 'SCHEDULER_REF', '2054e66e4831f187a8d98fb4b1bb70d3bd1f5e26', 'deps/src/nsec3-candidate-scheduler'),
+    'nsec3-candidate-scheduler': ('https://github.com/enk0nl/nsec3-candidate-scheduler', 'SCHEDULER_REF', 'cde74dbbccc641161846a9ccabf81551c3d586c1', 'deps/src/nsec3-candidate-scheduler'),
     'pcfg-subdomain-generator': ('https://github.com/enk0nl/pcfg-subdomain-generator', 'PCFG_REF', '171f89e85206cb22e89c3803c13f6a320d538e8b', 'deps/src/pcfg-subdomain-generator'),
     'SecLists': ('https://github.com/danielmiessler/SecLists', 'SECLISTS_REF', '198047f1e22251e3b88b98b10e8bd15283e8a1e9', 'deps/src/SecLists'),
     'opentaal-wordlist': ('https://github.com/OpenTaal/opentaal-wordlist', 'OPENTAAL_REF', 'b250510dda431785f962019167d1415198ff3905', 'deps/src/opentaal-wordlist'),

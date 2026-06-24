@@ -377,4 +377,4 @@ Recent activity shows OSINT start and completion/return events. OSINT returns ca
 
 Non-Git binaries are checked against minimum versions rather than exact local builds: hashcat >= 7.1.2, Python >= the project `requires-python`, Go >= 1.24.0 when building Go tools, Amass >= 5.1.1, and Subfinder >= 2.14.0. Amass/Subfinder are required only when OSINT arms are enabled; use `--disable-osint` for a fully non-OSINT scheduler config.
 
-The default `SCHEDULER_REF` is `2054e66e4831f187a8d98fb4b1bb70d3bd1f5e26`. This scheduler commit provides `--no-optimized-kernels`, `--optimized-kernel-failover`, and `--no-optimized-kernel-failover`. Override it only when testing a compatible scheduler with `SCHEDULER_REF=<custom-ref> scripts/bootstrap.sh`.
+The default `SCHEDULER_REF` is `cde74dbbccc641161846a9ccabf81551c3d586c1`. This scheduler commit provides `--no-optimized-kernels`, `--optimized-kernel-failover`, and `--no-optimized-kernel-failover`. Override it only when testing a compatible scheduler with `SCHEDULER_REF=<custom-ref> scripts/bootstrap.sh`.
