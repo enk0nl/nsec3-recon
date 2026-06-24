@@ -1258,3 +1258,71 @@ def test_arm_stats_small_height_shows_subtitle_before_clipping():
 def test_arm_names_do_not_wrap():
     out=_render_arm_panel_with_scores([('very/long/arm/name/that/should/not/wrap/across/two/rows',1.0,False)], max_rows=1)
     assert 'very/long/arm' in out
+
+
+def test_discovered_names_panel_renders_at_for_apex():
+    s=DashboardState('example.nl','/tmp/ws')
+    s.add_discovered_names(['@'], source='nsec3')
+    out=_render_text(s)
+    assert '@' in out
+    assert '  @' in out
+    assert 'waiting for discovered names' not in out
+
+
+def test_empty_plaintext_at_counts_toward_discovered_total():
+    s=DashboardState('example.nl','/tmp/ws')
+    s.add_discovered_names(['@','www','mail'], source='nsec3')
+    out=_render_text(s)
+    assert s.discovered_names_count == 3
+    assert 'total=3' in out
+    for name in ('@','www','mail'):
+        assert name in out
+
+
+def test_empty_plaintext_at_is_deduplicated(tmp_path):
+    p=tmp_path/'run.pot'; p.write_text('h1:.example.nl:ab:1:\nh2:.example.nl:ab:1:\n')
+    d=RichDashboard('example.nl', tmp_path, potfile_poll_interval_seconds=0)
+    d.state.current_potfile_path=str(p); d.poll_external_sources()
+    out=_render_text(d.state)
+    assert d.state.discovered_names_count == 1
+    assert d.state.discovered_names_seen == {'@'}
+    assert [i.name for i in d.state.discovered_names_recent].count('@') == 1
+    assert out.count('@') == 1
+
+
+def test_empty_plaintext_counts_toward_hash_progress(tmp_path):
+    p=tmp_path/'run.pot'
+    p.write_text('h1:.example.nl:ab:1:\nh2:.example.nl:ab:1:www\nh3:.example.nl:ab:1:mail\nh4:.example.nl:ab:1:api\n')
+    d=RichDashboard('example.nl', tmp_path, potfile_poll_interval_seconds=0)
+    d.state.current_potfile_path=str(p); d.state.nsec3_hash_total=4; d.poll_external_sources()
+    out=_render_text(d.state)
+    assert d.state.nsec3_hash_cracked == 4
+    assert 'hashes=4/4 (100.0%)' in out
+
+
+def test_hash_progress_not_derived_from_non_empty_names_only(tmp_path):
+    p=tmp_path/'run.pot'
+    p.write_text('h1:.example.nl:ab:1:\nh2:.example.nl:ab:1:www\nh3:.example.nl:ab:1:mail\nh4:.example.nl:ab:1:api\n')
+    d=RichDashboard('example.nl', tmp_path, potfile_poll_interval_seconds=0)
+    d.state.current_potfile_path=str(p); d.state.nsec3_hash_total=4; d.poll_external_sources()
+    out=_render_text(d.state)
+    assert 'hashes=4/4' in out
+    assert d.state.discovered_names_count == 4
+    assert '@' in out
+
+
+def test_normal_discovered_name_behavior_unchanged(tmp_path):
+    p=tmp_path/'run.pot'; p.write_text('abcd:.example.nl:ab:1:www\nefgh:.example.nl:ab:1:mail\n')
+    d=RichDashboard('example.nl', tmp_path, potfile_poll_interval_seconds=0)
+    d.state.current_potfile_path=str(p); d.poll_external_sources()
+    out=_render_text(d.state)
+    assert 'www' in out and 'mail' in out
+    assert '@' not in [i.name for i in d.state.discovered_names_recent]
+
+
+def test_footer_status_line_still_does_not_include_names_after_apex():
+    from nsec3_recon.ui.widgets import _status_line
+    s=DashboardState('example.nl','/tmp/ws')
+    s.add_discovered_names(['@'], source='nsec3')
+    text=_status_line(s)
+    assert 'names=' not in text

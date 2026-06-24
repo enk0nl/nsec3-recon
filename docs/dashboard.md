@@ -19,6 +19,6 @@ Discovered-name counts are shown in the Discovered names panel, not in the foote
 - Recent activity: compact event and scheduler messages.
 - Last completed slice / Previous completed slice: completed scheduler jobs or slices.
 - Arm statistics: per-arm runs, discoveries, reward, score, average runtime, and recency.
-- Discovered names: AXFR, NSEC, or NSEC3-validated names with `total=<n>` in the panel subtitle.
+- Discovered names: AXFR, NSEC, or NSEC3-validated names with `total=<n>` in the panel subtitle. The zone apex is displayed as `@` when hashcat cracks an empty plaintext value from the potfile; it counts toward the panel total and hash progress as a cracked hash.
 
 `Seen` is the last scheduler job/slice id where the arm produced a valid, scored `jobs.jsonl` record. It is a recency/debug field, not a timestamp and not a discovery, candidate, or hash count.

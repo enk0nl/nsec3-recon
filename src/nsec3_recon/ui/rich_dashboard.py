@@ -156,4 +156,6 @@ class RichDashboard:
                 self.state.current_potfile_path=str(path); self._tail=PotfileTail(path)
         if self._tail:
             new=self._tail.poll()
+            if getattr(self._tail, 'cracked_count', 0) > self.state.nsec3_hash_cracked:
+                self.state.nsec3_hash_cracked = self._tail.cracked_count; self._dirty=True
             if self.state.add_discovered_names(new, source='nsec3', method='hashcat_potfile'): self._dirty=True
