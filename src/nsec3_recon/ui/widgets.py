@@ -186,7 +186,7 @@ class RecentActivityPanel:
         from rich.text import Text
         body_height = self.max_rows if self.max_rows is not None else _panel_body_height(options, ACTIVITY_ROW_LIMIT)
         width=_content_width(options)
-        style_by_level={'warning':'yellow','error':'red','info':'white','debug':'dim'}
+        style_by_level={'warning':'yellow','error':'red','info':'dim','debug':'dim'}
         selected=[]; used_rows=0
         for activity in reversed(list(self.state.recent_activity)):
             style=style_by_level.get(activity.get('level'), 'white')
