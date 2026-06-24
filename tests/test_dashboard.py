@@ -46,7 +46,7 @@ def test_dashboard_arm_stats_aggregate():
 def test_nsec3_potfile_names_are_discovered_names(tmp_path):
     p=tmp_path/'x.pot'; p.write_text('h:cand\n')
     d=RichDashboard('example.nl', tmp_path); d.state.current_potfile_path=str(p); d.poll_external_sources(); d.poll_external_sources()
-    assert d.state.discovered_names_count==1 and d.state.discovered_names_recent[0].name=='cand' and d.state.discovered_names_recent[0].source=='nsec3'
+    assert d.state.discovered_names_count==1 and d.state.discovered_names_recent[0].name=='cand.example.nl' and d.state.discovered_names_recent[0].source=='nsec3'
 
 def test_dashboard_potfile_discovery(tmp_path):
     p=tmp_path/'scheduler'/'run.pot'; p.parent.mkdir(); p.write_text('')
@@ -1264,8 +1264,8 @@ def test_discovered_names_panel_renders_at_for_apex():
     s=DashboardState('example.nl','/tmp/ws')
     s.add_discovered_names(['@'], source='nsec3')
     out=_render_text(s)
-    assert '@' in out
-    assert '  @' in out
+    assert 'example.nl' in out
+    assert '@' not in [i.name for i in s.discovered_names_recent]
     assert 'waiting for discovered names' not in out
 
 
@@ -1275,7 +1275,7 @@ def test_empty_plaintext_at_counts_toward_discovered_total():
     out=_render_text(s)
     assert s.discovered_names_count == 3
     assert 'total=3' in out
-    for name in ('@','www','mail'):
+    for name in ('example.nl','www.example.nl','mail.example.nl'):
         assert name in out
 
 
@@ -1285,9 +1285,9 @@ def test_empty_plaintext_at_is_deduplicated(tmp_path):
     d.state.current_potfile_path=str(p); d.poll_external_sources()
     out=_render_text(d.state)
     assert d.state.discovered_names_count == 1
-    assert d.state.discovered_names_seen == {'@'}
-    assert [i.name for i in d.state.discovered_names_recent].count('@') == 1
-    assert out.count('@') == 1
+    assert d.state.discovered_names_seen == {'example.nl'}
+    assert [i.name for i in d.state.discovered_names_recent].count('example.nl') == 1
+    assert '@' not in out
 
 
 def test_empty_plaintext_counts_toward_hash_progress(tmp_path):
@@ -1308,7 +1308,7 @@ def test_hash_progress_not_derived_from_non_empty_names_only(tmp_path):
     out=_render_text(d.state)
     assert 'hashes=4/4' in out
     assert d.state.discovered_names_count == 4
-    assert '@' in out
+    assert 'example.nl' in out
 
 
 def test_normal_discovered_name_behavior_unchanged(tmp_path):
@@ -1316,7 +1316,7 @@ def test_normal_discovered_name_behavior_unchanged(tmp_path):
     d=RichDashboard('example.nl', tmp_path, potfile_poll_interval_seconds=0)
     d.state.current_potfile_path=str(p); d.poll_external_sources()
     out=_render_text(d.state)
-    assert 'www' in out and 'mail' in out
+    assert 'www.example.nl' in out and 'mail.example.nl' in out
     assert '@' not in [i.name for i in d.state.discovered_names_recent]
 
 
@@ -1343,7 +1343,7 @@ def test_final_dashboard_refresh_shows_empty_plaintext_as_at(tmp_path):
     d=RichDashboard('example.nl', tmp_path)
     d.state.current_potfile_path=str(p); d.final_refresh()
     out=_render_text(d.state)
-    assert '@' in out
+    assert 'example.nl' in out
     assert '  \n' not in [i.name for i in d.state.discovered_names_recent]
     assert '' not in [i.name for i in d.state.discovered_names_recent]
 
@@ -1374,7 +1374,7 @@ def test_final_refresh_bypasses_poll_intervals(tmp_path):
     d.poll_external_sources()
     assert 'api' not in [i.name for i in d.state.discovered_names_recent]
     d.final_refresh()
-    assert 'api' in [i.name for i in d.state.discovered_names_recent]
+    assert 'api.example.nl' in [i.name for i in d.state.discovered_names_recent]
 
 
 def test_final_refresh_reads_jobs_jsonl_completion_metadata(tmp_path):
@@ -1404,6 +1404,70 @@ def test_final_refresh_runs_on_scheduler_error_without_masking_error(tmp_path):
     d=RichDashboard('example.nl', tmp_path); d.state.current_potfile_path=str(p)
     d.state.overall_status='failed'; d.state.errors_count=1; d.state.last_error='scheduler failed'
     d.final_refresh()
-    assert 'api' in [i.name for i in d.state.discovered_names_recent]
+    assert 'api.example.nl' in [i.name for i in d.state.discovered_names_recent]
     assert d.state.overall_status == 'failed'
     assert d.state.errors_count == 1
+
+def test_nsec3_empty_plaintext_displays_zone_apex_fqdn(tmp_path):
+    p=tmp_path/'x.pot'; p.write_text('h:\n')
+    d=RichDashboard('example.nl', tmp_path, potfile_poll_interval_seconds=0)
+    d.state.current_potfile_path=str(p); d.poll_external_sources()
+    assert d.state.discovered_names_recent[0].name == 'example.nl'
+    assert d.state.discovered_names_recent[0].name != '@'
+
+def test_nsec3_at_displays_zone_apex_fqdn():
+    from nsec3_recon.adapters.potfile import normalize_nsec3_discovered_name
+    assert normalize_nsec3_discovered_name('@', 'example.nl') == 'example.nl'
+
+def test_nsec3_relative_label_expands_to_fqdn():
+    from nsec3_recon.adapters.potfile import normalize_nsec3_discovered_name
+    assert normalize_nsec3_discovered_name('www', 'example.nl') == 'www.example.nl'
+
+def test_nsec3_dotted_relative_name_expands_to_fqdn():
+    from nsec3_recon.adapters.potfile import normalize_nsec3_discovered_name
+    assert normalize_nsec3_discovered_name('dev.api', 'example.nl') == 'dev.api.example.nl'
+
+def test_nsec3_existing_fqdn_not_double_appended():
+    from nsec3_recon.adapters.potfile import normalize_nsec3_discovered_name
+    assert normalize_nsec3_discovered_name('www.example.nl', 'example.nl') == 'www.example.nl'
+
+def test_nsec3_trailing_dots_are_normalized():
+    from nsec3_recon.adapters.potfile import normalize_nsec3_discovered_name
+    assert normalize_nsec3_discovered_name('www.', 'example.nl.') == 'www.example.nl'
+    assert normalize_nsec3_discovered_name('www.example.nl.', 'example.nl') == 'www.example.nl'
+
+def test_nsec3_discovered_panel_renders_fqdns():
+    s=DashboardState('example.nl','/tmp/ws')
+    s.add_discovered_names(['@','www','mail'], source='nsec3', method='hashcat_potfile')
+    out=_render_text(s)
+    assert 'example.nl' in out and 'www.example.nl' in out and 'mail.example.nl' in out
+    import re
+    assert not re.search(r'\d{2}:\d{2}:\d{2}\s+@\b', out)
+    assert not re.search(r'\d{2}:\d{2}:\d{2}\s+www\b(?!\.)', out)
+    assert not re.search(r'\d{2}:\d{2}:\d{2}\s+mail\b(?!\.)', out)
+
+def test_axfr_discovered_names_unchanged():
+    s=DashboardState('example.nl')
+    s.add_discovered_names(['www.example.nl'], source='axfr', method='zone_transfer')
+    assert s.discovered_names_recent[0].name == 'www.example.nl'
+
+def test_nsec_discovered_names_unchanged():
+    s=DashboardState('example.nl')
+    s.add_discovered_names(['www.example.nl'], source='nsec', method='nsec_walk')
+    assert s.discovered_names_recent[0].name == 'www.example.nl'
+
+def test_nsec3_dedupes_after_fqdn_normalization():
+    s=DashboardState('example.nl')
+    s.add_discovered_names(['', '@', 'example.nl', 'example.nl.'], source='nsec3')
+    assert [n.name for n in s.discovered_names_recent] == ['example.nl']
+    s=DashboardState('example.nl')
+    s.add_discovered_names(['www', 'www.example.nl', 'www.example.nl.'], source='nsec3')
+    assert [n.name for n in s.discovered_names_recent] == ['www.example.nl']
+
+def test_hash_progress_unchanged_by_fqdn_display_normalization(tmp_path):
+    p=tmp_path/'x.pot'; p.write_text('h1:\nh2:www\nh3:mail\nh4:api\n')
+    d=RichDashboard('example.nl', tmp_path, potfile_poll_interval_seconds=0)
+    d.state.current_potfile_path=str(p); d.state.nsec3_hash_total=4; d.poll_external_sources()
+    assert d.state.nsec3_hash_cracked == 4
+    assert d.state.nsec3_hash_progress_percent == 100.0
+    assert d.state.discovered_names_recent[0].name == 'example.nl'

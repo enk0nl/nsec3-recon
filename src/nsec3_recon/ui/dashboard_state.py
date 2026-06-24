@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from collections import deque
 from datetime import datetime
 import time
+from ..adapters.potfile import normalize_nsec3_discovered_name
 
 STAGES = ['preflight','dns_probe','axfr','nsec3map_detect','nsec3map_enumeration','hashcatify','scheduler','summarize']
 LOW_VALUE_EVENTS = {'workspace_created','python_deps_ok','dependency_check_ok','tool_version_ok','model_assets_ok','path_check_ok','scheduler_model_assets_ok','scheduler_tool_preflight_ok','tool_preflight_ok'}
@@ -287,7 +288,9 @@ class DashboardState:
     @property
     def nsec3_hash_progress_percent(self):
         return (100.0 * self.nsec3_hash_cracked / self.nsec3_hash_total) if self.nsec3_hash_total else None
-    def _normalize_name(self, name):
+    def _normalize_name(self, name, source='nsec3'):
+        if source == 'nsec3':
+            return normalize_nsec3_discovered_name(name, self.domain)
         return str(name or '').strip().lower().rstrip('.')
     def _handle_discovery_event(self, event, data):
         source=data.get('source') or 'unknown'; method=data.get('method') or 'unknown'
@@ -299,13 +302,13 @@ class DashboardState:
         added=[]
         before_source=self.discovered_names_by_source.get(source, 0)
         for name in names or []:
-            norm=self._normalize_name(name)
+            norm=self._normalize_name(name, source=source)
             if not norm or norm in self.discovered_names_seen:
                 continue
             self.discovered_names_seen.add(norm)
-            item=DiscoveredName(name=str(name).rstrip('.'), source=source, method=method, first_seen_at=datetime.now().strftime('%H:%M:%S'))
+            item=DiscoveredName(name=norm, source=source, method=method, first_seen_at=datetime.now().strftime('%H:%M:%S'))
             self.discovered_names_recent.append(item); added.append(item)
-        observed_count = int(count) if count is not None else before_source + len(added)
+        observed_count = int(count) if count is not None and source != 'nsec3' else before_source + len(added)
         self.discovered_names_by_source[source] = max(before_source + len(added), observed_count)
         self.discovered_names_count = max(len(self.discovered_names_seen), sum(self.discovered_names_by_source.values()))
         return added

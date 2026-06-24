@@ -19,3 +19,18 @@ def test_summary_json_written_for_nsec3_scheduler(monkeypatch,tmp_path):
     monkeypatch.setattr(scheduler_stage,'run',lambda ctx: None)
     ctx=Pipeline(PipelineConfig('example.nl', out_dir=tmp_path/'r')).run()
     assert json.loads((ctx.workspace.root/'reports/summary.json').read_text())['completed_via']=='nsec3_scheduler'
+
+def test_nsec3_discovered_names_txt_contains_fqdns(tmp_path):
+    from nsec3_recon.pipeline import PipelineContext
+    from nsec3_recon.config import PipelineConfig
+    from nsec3_recon.workspace import Workspace
+    from nsec3_recon.events import EventSink
+    from nsec3_recon.stages.scheduler_stage import write_discovery_reports
+    ws=Workspace.create('example.nl', tmp_path/'r')
+    pot=ws.root/'scheduler/run.pot'; pot.parent.mkdir(parents=True, exist_ok=True)
+    pot.write_text('h1:\nh2:www\nh3:mail\n')
+    ctx=PipelineContext(PipelineConfig('example.nl', out_dir=tmp_path/'r'), ws, EventSink(ws.root/'events.jsonl'))
+    write_discovery_reports(ctx)
+    lines=(ws.root/'reports/discovered_names.txt').read_text().splitlines()
+    assert lines == ['example.nl', 'www.example.nl', 'mail.example.nl']
+    assert '@' not in lines and 'www' not in lines and 'mail' not in lines
