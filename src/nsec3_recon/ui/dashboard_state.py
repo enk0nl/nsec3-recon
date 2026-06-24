@@ -58,6 +58,7 @@ class DashboardState:
         self.scheduler_total_slices=scheduler_total_slices
         self.completed_slices_by_key={}; self.completed_slice_order=[]; self.processed_scheduler_records={}
         self.nsec3_hash_total=0; self.nsec3_hash_cracked=0; self.latest_stdout_slice_debug=None
+        self.scheduler_completed_reason=None
         self.last_scheduled_arm=None
         self.osint_status={}; self.emitted_osint_status_events=set(); self.emitted_failover_events=set()
     @property
@@ -252,10 +253,37 @@ class DashboardState:
     def _recompute_last_previous(self):
         self.last_completed_slice = self.completed_slices_by_key[self.completed_slice_order[-1]] if self.completed_slice_order else None
         self.previous_completed_slice = self.completed_slices_by_key[self.completed_slice_order[-2]] if len(self.completed_slice_order) > 1 else None
+    def update_scheduler_completion(self, record):
+        if not isinstance(record, dict):
+            return False
+        target = record.get('target_hash_count')
+        total = record.get('total_cracks')
+        remaining = record.get('remaining_hash_count')
+        reason = record.get('completed_reason')
+        changed = False
+        if target is not None and int(target) > self.nsec3_hash_total:
+            self.nsec3_hash_total = int(target); changed = True
+        if total is not None and int(total) > self.nsec3_hash_cracked:
+            self.nsec3_hash_cracked = int(total); changed = True
+        complete = reason == 'all_hashes_cracked' and target is not None and total is not None and remaining is not None and int(target) == int(total) and int(remaining) == 0
+        if complete:
+            if self.nsec3_hash_total != int(target):
+                self.nsec3_hash_total = int(target); changed = True
+            if self.nsec3_hash_cracked != int(total):
+                self.nsec3_hash_cracked = int(total); changed = True
+            if self.scheduler_completed_reason != reason:
+                self.scheduler_completed_reason = reason; changed = True
+            msg = f"[scheduler] completed: {int(total)}/{int(target)} hashes cracked"
+            if not any(item.get('message') == msg for item in self.recent_activity):
+                self.add_activity(msg); changed = True
+        return changed
     def _update_hash_progress(self, record):
         global_total = record.get('global_total') if record.get('global_total') is not None else record.get('total')
         if global_total is not None:
             self.nsec3_hash_cracked = max(self.nsec3_hash_cracked, int(global_total))
+        target = record.get('target_hash_count')
+        if target is not None:
+            self.nsec3_hash_total = max(self.nsec3_hash_total, int(target))
     @property
     def nsec3_hash_progress_percent(self):
         return (100.0 * self.nsec3_hash_cracked / self.nsec3_hash_total) if self.nsec3_hash_total else None
