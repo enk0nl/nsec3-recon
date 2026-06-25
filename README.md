@@ -2,6 +2,9 @@
 
 NSEC3 Recon is a CLI pipeline for DNSSEC-aware zone enumeration and NSEC3 hash-recovery workflows. It tries AXFR first, handles NSEC zones directly, and collects and cracks NSEC3 hashes with hashcat-backed candidate scheduling for NSEC3 zones.
 
+![NSEC3 Recon screenshot](docs/screenshot.png?raw=true)
+
+
 ## Problem
 
 NSEC3 protects zone walking by returning hashed owner names instead of cleartext names. Recovering names requires collecting the NSEC3 hash set, generating plausible DNS name candidates, and testing those candidates against the hashes. NSEC3 Recon automates collection, candidate generation, hashcat cracking, scheduling, dashboarding, and reporting into one reproducible run.
@@ -35,8 +38,6 @@ NSEC3 protects zone walking by returning hashed owner names instead of cleartext
 ```bash
 scripts/install.sh
 source .venv/bin/activate
-nsec3-recon --help
-nsec3-recon example.nl --dry-run
 ```
 
 `scripts/install.sh` calls `scripts/bootstrap.sh`; users should normally run the installer, not both scripts manually.
