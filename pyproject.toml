@@ -21,6 +21,8 @@ nsec3_recon = ["templates/*.json"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+testpaths = ["tests"]
+norecursedirs = [".git", ".venv", "**pycache**", "deps", "runs", "assets"]
 markers = [
   "slow: slow asset or external process tests",
   "integration: multi-stage pipeline or external-process tests",
