@@ -40,8 +40,6 @@ scripts/install.sh
 source .venv/bin/activate
 ```
 
-`scripts/install.sh` calls `scripts/bootstrap.sh`; users should normally run the installer, not both scripts manually.
-
 [Installation details](docs/installation.md)
 
 ## Quickstart
