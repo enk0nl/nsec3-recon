@@ -2,7 +2,7 @@
 
 NSEC3 Recon is a CLI pipeline for DNSSEC-aware zone enumeration and NSEC3 hash-recovery workflows. It tries AXFR first, handles NSEC zones directly, and collects and cracks NSEC3 hashes with hashcat-backed candidate scheduling for NSEC3 zones.
 
-![NSEC3 Recon screenshot](docs/screenshot.png?raw=true)
+![NSEC3 Recon screenshot](docs/screen.png?raw=true)
 
 
 ## Problem
