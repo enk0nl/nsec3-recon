@@ -107,7 +107,7 @@ def write_summary(ctx, completed_via, failed_stage=None, error=None):
         discovered_names = discovered_state or []
         discovered_by_source = ctx.state.get('discovered_names_by_source') or ({'nsec3': discovered_count} if discovered_count is not None else {})
     artifacts={'events':'events.jsonl'}
-    for rel, key in [('reports/cracked_names.txt','cracked_names'),('reports/discovered_names.txt','discovered_names'),('reports/discovered_names.json','discovered_names_json'),('config/dependency_manifest.json','dependency_manifest')]:
+    for rel, key in [('reports/cracked_names.txt','cracked_names'),('reports/discovered_names.txt','discovered_names'),('reports/discovered_names.json','discovered_names_json'),('reports/nsec3_chain.tsv','nsec3_chain'),('config/dependency_manifest.json','dependency_manifest')]:
         if (ctx.workspace.root/rel).exists(): artifacts[key]=rel
     if ax.get('supported'): artifacts.update({'zone_file':'axfr/zone.txt','names_file':'axfr/names.txt'})
     if n3.get('zone_file'): artifacts['zone_file']=n3['zone_file']

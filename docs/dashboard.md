@@ -46,3 +46,4 @@ After scheduler exit, the dashboard performs a final refresh from scheduler arti
 ## Reports
 
 Review `reports/summary.json`, `reports/summary.md`, `reports/artifacts.json`, `reports/discovered_names.txt`, `reports/discovered_names.json`, and `reports/cracked_names.txt` for completed runs.
+NSEC3 runs also write `nsec3_chain.tsv`, a tab-separated full-chain artifact ordered by NSEC3 hash-chain links and annotated with recovered plaintext/FQDN values where available.
