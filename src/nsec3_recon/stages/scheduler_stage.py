@@ -1,6 +1,7 @@
 from ..adapters.scheduler import render_scheduler_config
 from ..adapters.subprocess_runner import SubprocessRunner
 from ..adapters.potfile import extract_potfile_names
+from ..nsec3_chain_report import write_nsec3_chain_report
 from ..events import utc_now
 import json
 from ..adapters.tools import validate_scheduler_tools
@@ -64,7 +65,11 @@ def write_discovery_reports(ctx):
     ctx.state["cracked_count"] = len(names)
     ctx.state["discovered_names_count"] = len(names)
     ctx.state["discovered_names_by_source"] = {"nsec3": len(names)}
-    ctx.events.emit("discovery", "names_discovered", f"{len(names)} names discovered via NSEC3", data={"source": "nsec3", "count": len(names), "path": "reports/discovered_names.txt", "malformed_potfile_lines": malformed})
+    chain_path = write_nsec3_chain_report(ctx.workspace.root, ctx.config.domain)
+    event_data = {"source": "nsec3", "count": len(names), "path": "reports/discovered_names.txt", "malformed_potfile_lines": malformed}
+    if chain_path is not None:
+        event_data["nsec3_chain_report"] = "reports/nsec3_chain.tsv"
+    ctx.events.emit("discovery", "names_discovered", f"{len(names)} names discovered via NSEC3", data=event_data)
 
 
 

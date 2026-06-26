@@ -71,3 +71,43 @@ def extract_nsec_names(path, domain):
             seen.add(owner)
             names.append(owner)
     return names
+
+
+class NSEC3ChainRow(dict):
+    pass
+
+
+def _owner_hash(owner: str, domain: str) -> str:
+    owner = str(owner or '').strip().rstrip('.').lower()
+    zone = str(domain or '').strip().rstrip('.').lower()
+    if zone and owner.endswith('.' + zone):
+        owner = owner[:-(len(zone) + 1)]
+    return owner.split('.', 1)[0]
+
+
+def parse_nsec3_chain_rows(path, domain=''):
+    rows = []
+    seen = set()
+    p = Path(path)
+    if not p.exists():
+        return rows
+    for line in p.read_text(encoding='utf-8', errors='replace').splitlines():
+        s = line.strip()
+        if not s or s.startswith(';'):
+            continue
+        parts = s.split()
+        try:
+            idx = next(i for i, part in enumerate(parts) if part.upper() == 'NSEC3')
+        except StopIteration:
+            continue
+        owner = _owner_hash(parts[0], domain)
+        if not owner or owner in seen:
+            continue
+        seen.add(owner)
+        fields = parts[idx + 1:]
+        row = NSEC3ChainRow(hash=owner)
+        for key, pos in (('algorithm', 0), ('flags', 1), ('iterations', 2), ('salt', 3), ('next_hash', 4)):
+            row[key] = fields[pos] if len(fields) > pos else ''
+        row['rrtypes'] = ' '.join(fields[5:]) if len(fields) > 5 else ''
+        rows.append(row)
+    return rows
